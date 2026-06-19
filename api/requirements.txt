@@ -1,0 +1,14 @@
+fastapi[all]
+python-dotenv
+langchain
+langchain-core
+langchain-community
+langchain-openai
+pydantic
+faiss-cpu
+uvicorn
+langchain-huggingface
+transformers
+torch
+sentence-transformers
+accelerate

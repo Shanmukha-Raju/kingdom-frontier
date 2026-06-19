@@ -1,0 +1,1857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kingdom Frontier — RPG NPC Dialogue Engine</title>
+    <meta name="description" content="Kingdom Frontier RPG NPC Dialogue Engine with AI-powered conversations, quest tracking, and dynamic NPC emotions.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           KINGDOM FRONTIER — DESIGN SYSTEM
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --bg-deep: #0a0b10;
+            --bg-base: #11131a;
+            --bg-panel: rgba(18, 20, 30, 0.85);
+            --bg-card: rgba(26, 29, 42, 0.7);
+            --bg-hover: rgba(255, 255, 255, 0.04);
+            --border-base: rgba(255, 215, 100, 0.08);
+            --border-hover: rgba(255, 215, 100, 0.2);
+            --gold-primary: #f0c040;
+            --gold-dim: #c9a030;
+            --gold-glow: rgba(240, 192, 64, 0.35);
+            --gold-subtle: rgba(240, 192, 64, 0.08);
+            --amber: #ff9f1c;
+            --amber-glow: rgba(255, 159, 28, 0.3);
+            --crimson: #e63946;
+            --crimson-glow: rgba(230, 57, 70, 0.3);
+            --emerald: #2ec4b6;
+            --emerald-glow: rgba(46, 196, 182, 0.3);
+            --sky: #5fa8d3;
+            --sky-glow: rgba(95, 168, 211, 0.25);
+            --text-bright: #f5f0e1;
+            --text-body: #c8c0b0;
+            --text-muted: #7a7468;
+            --text-dim: #4a453d;
+            --font-display: 'Cinzel', serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --shadow-panel: 0 8px 40px rgba(0,0,0,0.5), 0 0 80px rgba(240,192,64,0.03);
+            --shadow-card: 0 4px 20px rgba(0,0,0,0.3);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-deep);
+            background-image:
+                radial-gradient(ellipse at 15% 10%, rgba(240,192,64,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 85% 90%, rgba(230,57,70,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(46,196,182,0.02) 0%, transparent 60%);
+            color: var(--text-body);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ─── Ember Particles ─────────────────────────────────────── */
+        .embers {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; overflow: hidden;
+        }
+        .ember {
+            position: absolute;
+            width: 3px; height: 3px;
+            background: var(--gold-primary);
+            border-radius: 50%;
+            opacity: 0;
+            animation: ember-float linear infinite;
+            box-shadow: 0 0 6px var(--gold-glow), 0 0 12px rgba(240,192,64,0.15);
+        }
+        .ember:nth-child(1) { left:10%; animation-duration:12s; animation-delay:0s; }
+        .ember:nth-child(2) { left:25%; animation-duration:15s; animation-delay:2s; width:2px; height:2px; }
+        .ember:nth-child(3) { left:40%; animation-duration:10s; animation-delay:4s; }
+        .ember:nth-child(4) { left:55%; animation-duration:14s; animation-delay:1s; width:4px; height:4px; }
+        .ember:nth-child(5) { left:70%; animation-duration:11s; animation-delay:3s; }
+        .ember:nth-child(6) { left:85%; animation-duration:13s; animation-delay:5s; width:2px; height:2px; }
+        .ember:nth-child(7) { left:15%; animation-duration:16s; animation-delay:6s; }
+        .ember:nth-child(8) { left:60%; animation-duration:9s; animation-delay:7s; width:3px; height:3px; }
+
+        @keyframes ember-float {
+            0%   { transform: translateY(100vh) translateX(0) scale(0); opacity: 0; }
+            15%  { opacity: 0.8; }
+            50%  { transform: translateY(50vh) translateX(30px) scale(1); opacity: 0.5; }
+            85%  { opacity: 0.2; }
+            100% { transform: translateY(-10vh) translateX(-20px) scale(0); opacity: 0; }
+        }
+
+        /* ─── Layout Shell ────────────────────────────────────────── */
+        .app-shell {
+            position: relative; z-index: 1;
+            max-width: 1520px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            display: flex; flex-direction: column; gap: 1.5rem;
+            min-height: 100vh;
+        }
+
+        /* ─── Header ─────────────────────────────────────────────── */
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border-base);
+        }
+        .header-brand {
+            display: flex; align-items: center; gap: 1rem;
+        }
+        .header-icon {
+            font-size: 1.8rem; filter: drop-shadow(0 0 8px var(--gold-glow));
+        }
+        .header-title {
+            font-family: var(--font-display);
+            font-size: 1.75rem; font-weight: 800;
+            background: linear-gradient(135deg, var(--gold-primary) 0%, #fff8e0 40%, var(--gold-dim) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+            text-shadow: 0 0 30px var(--gold-glow);
+        }
+        .header-subtitle {
+            font-size: 0.75rem; color: var(--text-muted);
+            font-family: var(--font-mono);
+            letter-spacing: 2px; text-transform: uppercase;
+        }
+        .header-status {
+            display: flex; align-items: center; gap: 0.6rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-base);
+            padding: 0.5rem 1rem; border-radius: 100px;
+            font-size: 0.8rem; color: var(--text-muted);
+        }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--emerald);
+            box-shadow: 0 0 10px var(--emerald-glow);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%   { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(46,196,182,0.7); }
+            70%  { transform: scale(1); box-shadow: 0 0 0 8px rgba(46,196,182,0); }
+            100% { transform: scale(0.9); }
+        }
+
+        /* ─── Stats Bar ──────────────────────────────────────────── */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        .stat-card {
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-md);
+            padding: 1.1rem 1.3rem;
+            box-shadow: var(--shadow-card);
+            transition: var(--transition);
+            position: relative; overflow: hidden;
+        }
+        .stat-card::after {
+            content: ''; position: absolute;
+            top: 0; left: 0; width: 3px; height: 100%;
+            border-radius: 0 3px 3px 0;
+        }
+        .stat-card.gold::after   { background: var(--gold-primary); }
+        .stat-card.amber::after  { background: var(--amber); }
+        .stat-card.emerald::after{ background: var(--emerald); }
+        .stat-card.sky::after    { background: var(--sky); }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--border-hover);
+        }
+        .stat-label {
+            font-size: 0.7rem; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 1.5px;
+            font-weight: 600; margin-bottom: 0.35rem;
+        }
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 1.8rem; font-weight: 800;
+            color: var(--text-bright);
+        }
+
+        /* ─── Main 3-Column Layout ───────────────────────────────── */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr 300px;
+            gap: 1.5rem;
+            flex: 1;
+        }
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .stats-bar { grid-template-columns: 1fr; }
+        }
+
+        /* ─── Panel Base ─────────────────────────────────────────── */
+        .panel {
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-panel);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 1.1rem 1.4rem;
+            border-bottom: 1px solid var(--border-base);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-title {
+            font-family: var(--font-display);
+            font-size: 0.95rem; font-weight: 700;
+            color: var(--text-bright);
+            letter-spacing: 0.5px;
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .panel-title-icon { font-size: 1rem; }
+        .panel-badge {
+            font-size: 0.65rem; font-family: var(--font-mono);
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-base);
+            padding: 0.2rem 0.6rem; border-radius: 100px;
+        }
+        .panel-body {
+            padding: 1rem 1.2rem;
+            display: flex; flex-direction: column;
+            flex: 1; overflow-y: auto;
+        }
+
+        /* ─── Left: NPC Selector ─────────────────────────────────── */
+        .npc-list { display: flex; flex-direction: column; gap: 0.6rem; }
+        .npc-item {
+            display: flex; align-items: center; gap: 0.8rem;
+            padding: 0.8rem 1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .npc-item:hover {
+            background: var(--bg-hover);
+            border-color: rgba(255, 215, 100, 0.05);
+        }
+        .npc-item.active {
+            background: var(--gold-subtle);
+            border-color: var(--border-hover);
+            box-shadow: inset 0 0 12px rgba(240,192,64,0.05);
+        }
+        .npc-avatar {
+            font-size: 1.4rem;
+            background: rgba(255,255,255,0.02);
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--border-base);
+        }
+        .npc-item.active .npc-avatar {
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 10px var(--gold-glow);
+        }
+        .npc-info { flex: 1; }
+        .npc-name { font-weight: 600; color: var(--text-bright); font-size: 0.85rem; }
+        .npc-location { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+        /* ─── Center: Chat / Dialogue ────────────────────────────── */
+        .dialogue-panel { flex: 1; }
+        .chat-area {
+            flex: 1; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 1rem;
+            padding: 0.5rem; min-height: 250px; max-height: 400px;
+            border-bottom: 1px solid var(--border-base);
+        }
+        .chat-bubble {
+            max-width: 80%; padding: 0.85rem 1.1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.88rem; line-height: 1.5;
+            position: relative; animation: bubble-slide 0.3s ease;
+        }
+        @keyframes bubble-slide {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chat-bubble.npc {
+            background: var(--bg-card);
+            border: 1px solid var(--border-base);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-bubble.player {
+            background: var(--gold-subtle);
+            border: 1px solid var(--border-hover);
+            color: var(--text-bright);
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .chat-sender {
+            font-size: 0.68rem; font-family: var(--font-display);
+            font-weight: 700; color: var(--gold-primary);
+            letter-spacing: 0.5px; margin-bottom: 0.3rem;
+            text-transform: uppercase;
+        }
+        .chat-bubble.player .chat-sender { color: #fff; }
+        .chat-timestamp {
+            font-size: 0.6rem; color: var(--text-muted);
+            text-align: right; margin-top: 0.4rem;
+        }
+        .action-badge {
+            display: inline-block; font-size: 0.65rem; font-family: var(--font-mono);
+            color: var(--amber); background: rgba(255,159,28,0.06);
+            border: 1px solid var(--amber-glow);
+            padding: 0.2rem 0.5rem; border-radius: 4px;
+            margin-top: 0.5rem; text-transform: uppercase;
+        }
+
+        /* Typing Indicator */
+        .typing-indicator {
+            display: none; align-items: center; gap: 4px;
+            padding: 0.8rem 1rem; background: var(--bg-card);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-md); align-self: flex-start;
+            margin-bottom: 1rem; width: 60px;
+        }
+        .typing-indicator.visible { display: flex; }
+        .typing-dot {
+            width: 6px; height: 6px; background: var(--text-muted);
+            border-radius: 50%; animation: typing 1s infinite alternate;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            from { transform: translateY(0); opacity: 0.3; }
+            to { transform: translateY(-5px); opacity: 1; }
+        }
+
+        /* Dialogue Choices (LLM Choices) */
+        .choices-area {
+            display: flex; flex-direction: column; gap: 0.5rem;
+            padding: 1rem 0; border-bottom: 1px solid var(--border-base);
+        }
+        .choices-label {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1.5px;
+            font-weight: 600; margin-bottom: 0.2rem;
+        }
+        #choices-container { display: flex; flex-direction: column; gap: 0.4rem; }
+        .choice-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.75rem 1rem;
+            text-align: left; color: var(--text-body);
+            font-size: 0.82rem; cursor: pointer;
+            transition: var(--transition);
+            display: flex; gap: 0.75rem; align-items: center;
+        }
+        .choice-btn:hover:not(:disabled) {
+            border-color: var(--border-hover);
+            background: var(--bg-hover);
+            color: var(--text-bright);
+            transform: translateX(4px);
+        }
+        .choice-num {
+            font-family: var(--font-mono); font-size: 0.72rem;
+            color: var(--gold-primary); font-weight: 700;
+            background: var(--gold-subtle);
+            width: 20px; height: 20px; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(240,192,64,0.15);
+        }
+
+        /* Free Text Input */
+        .free-text-area {
+            display: flex; gap: 0.75rem; margin-top: 1rem;
+        }
+        .free-text-input {
+            flex: 1; background: rgba(0,0,0,0.25);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.8rem 1rem; color: var(--text-bright);
+            font-size: 0.88rem; outline: none;
+            transition: var(--transition);
+        }
+        .free-text-input:focus {
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 10px var(--gold-glow);
+        }
+        .send-btn {
+            background: linear-gradient(135deg, var(--gold-dim) 0%, var(--gold-primary) 100%);
+            border: none; border-radius: var(--radius-sm);
+            padding: 0 1.5rem; color: #11131a;
+            font-family: var(--font-display); font-weight: 700;
+            font-size: 0.85rem; letter-spacing: 0.5px;
+            cursor: pointer; transition: var(--transition);
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .send-btn:hover:not(:disabled) {
+            box-shadow: 0 0 20px var(--gold-glow);
+            transform: translateY(-1px);
+        }
+
+        /* ─── Right: Status Sidebar ──────────────────────────────── */
+        .status-panel { width: 300px; }
+        .player-section {
+            background: rgba(255,255,255,0.01);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.9rem; margin-bottom: 0.5rem;
+        }
+        .player-section-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .player-section-title {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1px;
+            font-weight: 600;
+        }
+        .settings-icon-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; font-size: 0.95rem; transition: var(--transition);
+        }
+        .settings-icon-btn:hover { color: var(--gold-primary); }
+
+        .emotion-section { padding: 0.5rem 0; }
+        .emotion-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.6rem;
+        }
+        .emotion-label {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1px;
+        }
+        .emotion-state {
+            font-size: 0.7rem; font-family: var(--font-mono);
+            font-weight: 700; text-transform: uppercase;
+            padding: 0.15rem 0.5rem; border-radius: 100px;
+        }
+        .emotion-state.neutral { color: var(--sky); background: rgba(95,168,211,0.1); border: 1px solid var(--sky-glow); }
+        .emotion-state.friendly { color: var(--emerald); background: rgba(46,196,182,0.1); border: 1px solid var(--emerald-glow); }
+        .emotion-state.grateful { color: #fff; background: rgba(240,192,64,0.2); border: 1px solid var(--gold-primary); }
+        .emotion-state.distrustful { color: var(--amber); background: rgba(255,159,28,0.1); border: 1px solid var(--amber-glow); }
+        .emotion-state.hostile { color: var(--crimson); background: rgba(230,57,70,0.1); border: 1px solid var(--crimson-glow); }
+
+        .trust-bar-track {
+            height: 6px; background: rgba(0,0,0,0.3);
+            border-radius: 100px; overflow: hidden;
+            border: 1px solid var(--border-base);
+        }
+        .trust-bar-fill {
+            height: 100%; width: 50%; border-radius: 100px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .trust-bar-fill.max { background: linear-gradient(90deg, var(--gold-dim), var(--gold-primary)); }
+        .trust-bar-fill.high { background: var(--emerald); }
+        .trust-bar-fill.medium { background: var(--sky); }
+        .trust-bar-fill.low { background: var(--crimson); }
+        .trust-value {
+            font-size: 0.65rem; color: var(--text-muted);
+            text-align: right; margin-top: 0.3rem;
+            font-family: var(--font-mono);
+        }
+
+        .inventory-section { padding: 0.5rem 0; }
+        .inventory-title {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1px;
+            font-weight: 600; margin-bottom: 0.5rem;
+        }
+        .inventory-list {
+            display: flex; flex-direction: column; gap: 0.35rem;
+            max-height: 120px; overflow-y: auto;
+        }
+        .inventory-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0, 0, 0, 0.15);
+            padding: 0.4rem 0.6rem; border-radius: 4px;
+            border: 1px solid var(--border-base);
+            font-size: 0.78rem;
+        }
+        .inventory-item-name { color: var(--text-body); }
+        .inventory-item-qty { color: var(--gold-primary); font-family: var(--font-mono); font-size: 0.7rem; }
+
+        .quest-section { padding: 0.5rem 0; }
+        .quest-section-title {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1px;
+            font-weight: 600; margin-bottom: 0.5rem;
+        }
+        .quest-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .quest-item {
+            background: rgba(0,0,0,0.15);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.6rem 0.8rem;
+            position: relative;
+        }
+        .quest-name { font-size: 0.78rem; font-weight: 600; color: var(--text-bright); }
+        .quest-status {
+            display: inline-block; font-size: 0.6rem; font-family: var(--font-mono);
+            padding: 0.05rem 0.4rem; border-radius: 4px;
+            margin-top: 0.25rem; text-transform: uppercase;
+        }
+        .quest-status.completed { color: var(--emerald); background: rgba(46,196,182,0.1); border: 1px solid var(--emerald-glow); }
+        .quest-status.in_progress { color: var(--amber); background: rgba(255,159,28,0.1); border: 1px solid var(--amber-glow); }
+        .quest-status.not_started { color: var(--text-muted); background: rgba(255,255,255,0.02); border: 1px solid var(--border-base); }
+        .quest-step {
+            position: absolute; top: 0.6rem; right: 0.8rem;
+            font-size: 0.65rem; font-family: var(--font-mono); color: var(--text-muted);
+        }
+        .quest-empty { font-size: 0.75rem; color: var(--text-dim); text-align: center; padding: 1rem 0; }
+
+        .history-section { padding: 0.5rem 0; }
+        .history-title {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1.5px;
+            margin-bottom: 0.5rem;
+        }
+        .history-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 120px; overflow-y: auto; }
+        .history-item {
+            font-size: 0.72rem; padding: 0.4rem 0.6rem;
+            background: rgba(255,255,255,0.015);
+            border-radius: 6px; color: var(--text-muted);
+        }
+        .history-item strong { color: var(--text-body); }
+
+        .section-divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-base), transparent);
+            margin: 0.25rem 0;
+        }
+
+        .empty-state {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 0.75rem; padding: 2rem; text-align: center;
+            color: var(--text-dim);
+        }
+        .empty-state-icon { font-size: 2.5rem; opacity: 0.3; }
+        .empty-state-text { font-size: 0.85rem; line-height: 1.5; }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(240,192,64,0.1);
+            border-radius: 100px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(240,192,64,0.25); }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(240,192,64,0.2);
+            border-top-color: var(--gold-primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── Registration Overlay Screen ────────────────────────────── */
+        .registration-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(10, 11, 16, 0.96);
+            backdrop-filter: blur(20px);
+            z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .registration-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-hover);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 0 100px rgba(240, 192, 64, 0.15);
+            padding: 2.5rem;
+            max-width: 500px; width: 90%;
+            text-align: center;
+            animation: card-appear 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes card-appear {
+            from { opacity: 0; transform: scale(0.9) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .registration-title {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--gold-primary) 0%, #fff8e0 50%, var(--gold-dim) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .registration-subtitle {
+            font-size: 0.7rem; color: var(--gold-primary);
+            font-family: var(--font-mono);
+            letter-spacing: 2px; text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+        .registration-label {
+            display: block; text-align: left;
+            font-size: 0.75rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+        .registration-input {
+            width: 100%; padding: 0.8rem 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            color: var(--text-bright);
+            font-family: var(--font-body);
+            font-size: 1rem;
+            outline: none; transition: var(--transition);
+            text-align: center;
+        }
+        .registration-input:focus {
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 10px rgba(240, 192, 64, 0.2);
+        }
+        .class-selector {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;
+        }
+        .class-card {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.85rem 0.5rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .class-card:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 215, 100, 0.2);
+        }
+        .class-card.active {
+            background: var(--gold-subtle);
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 15px rgba(240, 192, 64, 0.15);
+        }
+        .class-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
+        .class-name { font-size: 0.65rem; font-weight: 700; color: var(--text-body); text-transform: uppercase; letter-spacing: 0.5px; }
+        .register-btn {
+            width: 100%; padding: 1rem; margin-top: 2rem;
+            background: linear-gradient(90deg, var(--gold-dim), var(--gold-primary));
+            border: none; border-radius: var(--radius-sm);
+            color: #11131a; font-weight: 800;
+            font-family: var(--font-display);
+            font-size: 0.95rem; letter-spacing: 1px;
+            cursor: pointer; transition: var(--transition);
+        }
+        .register-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(240, 192, 64, 0.4);
+        }
+
+        /* ─── Interactive Command Suggestions Deck ───────────────────── */
+        .command-deck {
+            margin-top: 1rem;
+            border-top: 1px solid var(--border-base);
+            padding-top: 0.75rem;
+        }
+        .command-deck-title {
+            font-size: 0.72rem; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 1px;
+            margin-bottom: 0.4rem; font-weight: 600;
+        }
+        .command-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem;
+        }
+        .command-btn {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.55rem 0.3rem;
+            color: var(--text-body);
+            font-size: 0.74rem; font-weight: 600;
+            cursor: pointer; transition: var(--transition);
+            text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+        }
+        .command-btn:hover {
+            background: var(--gold-subtle);
+            border-color: var(--gold-primary);
+            color: var(--text-bright);
+            transform: translateY(-1px);
+        }
+        .command-icon { font-size: 1rem; }
+        .submenu-panel {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0.75rem; margin-top: 0.5rem;
+            display: none; flex-wrap: wrap; gap: 0.4rem;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .submenu-title {
+            width: 100%; font-size: 0.68rem; text-transform: uppercase;
+            color: var(--gold-primary); font-weight: 700; margin-bottom: 0.35rem;
+            letter-spacing: 0.5px;
+        }
+        .submenu-item-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-base);
+            border-radius: 4px; padding: 0.4rem 0.75rem;
+            color: var(--text-body); font-size: 0.72rem;
+            cursor: pointer; transition: var(--transition);
+            display: flex; gap: 0.5rem; align-items: center;
+        }
+        .submenu-item-btn:hover {
+            border-color: var(--gold-primary);
+            color: var(--text-bright);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .submenu-item-price { color: var(--gold-primary); font-family: var(--font-mono); font-weight: 600; }
+
+        /* Settings Modal */
+        .settings-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(10, 11, 16, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 9998;
+            display: none; align-items: center; justify-content: center;
+        }
+        .settings-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-hover);
+            border-radius: var(--radius-lg);
+            padding: 2.2rem; max-width: 450px; width: 90%;
+            position: relative;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        .settings-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem; color: var(--text-bright);
+            margin-bottom: 1.5rem;
+        }
+        .settings-close {
+            position: absolute; top: 1rem; right: 1rem;
+            background: transparent; border: none; color: var(--text-muted);
+            font-size: 1.25rem; cursor: pointer; transition: var(--transition);
+        }
+        .settings-close:hover { color: var(--text-bright); }
+    </style>
+</head>
+<body>
+    <!-- Floating embers -->
+    <div class="embers">
+        <div class="ember"></div><div class="ember"></div><div class="ember"></div>
+        <div class="ember"></div><div class="ember"></div><div class="ember"></div>
+        <div class="ember"></div><div class="ember"></div>
+    </div>
+
+    <!-- Registration Screen Overlay -->
+    <div id="registration-overlay" class="registration-overlay">
+        <div class="registration-card">
+            <h2 class="registration-title">⚔️ Kingdom Frontier ⚔️</h2>
+            <div class="registration-subtitle">RPG Dialogue & State Engine</div>
+            <p style="color:var(--text-body); margin-bottom:1.8rem; font-size:0.85rem; line-height: 1.5;">
+                Enter your adventurer name and choose your archetype. Your progress, gold, and dialogue memory are saved privately to your character.
+            </p>
+            
+            <div style="margin-bottom:1.5rem;">
+                <label class="registration-label" for="reg-player-name">Adventurer Name</label>
+                <input type="text" id="reg-player-name" class="registration-input" placeholder="e.g. Galahad, Arthur..." value="Adventurer">
+            </div>
+            
+            <div style="margin-bottom:1rem;">
+                <label class="registration-label">Choose Archetype</label>
+                <div class="class-selector">
+                    <div class="class-card active" data-class="warrior">
+                        <div class="class-icon">🛡️</div>
+                        <div class="class-name">Warrior</div>
+                    </div>
+                    <div class="class-card" data-class="mage">
+                        <div class="class-icon">🧙‍♂️</div>
+                        <div class="class-name">Mage</div>
+                    </div>
+                    <div class="class-card" data-class="rogue">
+                        <div class="class-icon">🗡️</div>
+                        <div class="class-name">Rogue</div>
+                    </div>
+                    <div class="class-card" data-class="cleric">
+                        <div class="class-icon">✨</div>
+                        <div class="class-name">Cleric</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="register-submit-btn" class="register-btn" onclick="submitRegistration()">Begin Adventure</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="settings-modal">
+        <div class="settings-card">
+            <button class="settings-close" onclick="closeSettings()">&times;</button>
+            <h3 class="settings-title">⚙️ Character Settings</h3>
+            
+            <label class="registration-label">Switch Archetype</label>
+            <div class="class-selector" style="margin-bottom:2rem;">
+                <div class="class-card" id="set-class-warrior" onclick="setClassOption('warrior')">
+                    <div class="class-icon">🛡️</div>
+                    <div class="class-name">Warrior</div>
+                </div>
+                <div class="class-card" id="set-class-mage" onclick="setClassOption('mage')">
+                    <div class="class-icon">🧙‍♂️</div>
+                    <div class="class-name">Mage</div>
+                </div>
+                <div class="class-card" id="set-class-rogue" onclick="setClassOption('rogue')">
+                    <div class="class-icon">🗡️</div>
+                    <div class="class-name">Rogue</div>
+                </div>
+                <div class="class-card" id="set-class-cleric" onclick="setClassOption('cleric')">
+                    <div class="class-icon">✨</div>
+                    <div class="class-name">Cleric</div>
+                </div>
+            </div>
+            
+            <button class="register-btn" onclick="saveSettingsClass()" style="margin-top:0;">Save & Sync Class</button>
+            <button class="register-btn" onclick="logoutPlayer()" style="margin-top:0.75rem; background:rgba(230,57,70,0.15); border:1px solid var(--crimson-glow); color:var(--crimson);">Switch Player Account</button>
+            <div class="settings-about" style="margin-top:1.5rem; padding:1rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px;">
+                <h4 style="margin:0 0 0.75rem; color:var(--text-bright);">About the Game</h4>
+                <p style="margin:0 0 0.75rem; line-height:1.5;">Kingdom Frontier is a story-driven RPG where each NPC follows a role in the adventure. Returning to the same NPC changes the conversation based on your past visits.</p>
+                <p style="margin:0 0 0.75rem; line-height:1.5;"><strong>NPC Roles:</strong><br>Mira = Merchant, Captain Aldric = Gatekeeper, Elder Thorn = Forest Elder, Shade = Shadow Agent.</p>
+                <p style="margin:0; line-height:1.5;">This interface is built to stay compatible with Unity later: the backend is API-driven, and Unity can call the same endpoints with C#.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-shell">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <span class="header-icon">⚔️</span>
+                <div>
+                    <h1 class="header-title">Kingdom Frontier</h1>
+                    <div class="header-subtitle">RPG NPC State Engine</div>
+                </div>
+            </div>
+            <div class="header-status">
+                <div class="status-dot"></div>
+                <span id="server-status-text">Engine Online</span>
+            </div>
+        </header>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card gold">
+                <div class="stat-label">Conversations</div>
+                <div class="stat-value" id="stat-conversations">0</div>
+            </div>
+            <div class="stat-card amber">
+                <div class="stat-label">Active Quests</div>
+                <div class="stat-value" id="stat-quests">0</div>
+            </div>
+            <div class="stat-card emerald">
+                <div class="stat-label">NPCs Online</div>
+                <div class="stat-value" id="stat-npcs">4</div>
+            </div>
+            <div class="stat-card sky">
+                <div class="stat-label">Player Gold</div>
+                <div class="stat-value" id="stat-gold">100g</div>
+            </div>
+        </div>
+
+        <!-- Main 3-Column Layout -->
+        <div class="main-grid">
+            <!-- Left: NPC Selector -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="panel-title-icon">🏰</span> NPCs
+                    </div>
+                    <span class="panel-badge" id="npc-count-badge">4 total</span>
+                </div>
+                <div class="panel-body">
+                    <div class="npc-list" id="npc-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center: Dialogue -->
+            <div class="panel dialogue-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="panel-title-icon">💬</span>
+                        <span id="dialogue-panel-title">Select an NPC</span>
+                    </div>
+                    <span class="panel-badge" id="dialogue-status">Ready</span>
+                </div>
+                <div class="panel-body">
+                    <!-- Chat Area -->
+                    <div class="chat-area" id="chat-area">
+                        <div class="empty-state" id="chat-empty">
+                            <div class="empty-state-icon">🗡️</div>
+                            <div class="empty-state-text">
+                                Select an NPC from the left panel<br>to begin your adventure.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Typing Indicator -->
+                    <div class="typing-indicator" id="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+
+                    <!-- Dialogue Choices (LLM Choices) -->
+                    <div class="choices-area" id="choices-area" style="display:none;">
+                        <div class="choices-label">Choose your response</div>
+                        <div id="choices-container"></div>
+                    </div>
+
+                    <!-- Interactive Command Suggestions Deck -->
+                    <div class="command-deck">
+                        <div class="command-deck-title">⚡ Interactive Suggestion Commands</div>
+                        <div class="command-grid">
+                            <button class="command-btn" onclick="triggerCommand('greeting')">
+                                <span class="command-icon">👋</span>
+                                <span>Greet NPC</span>
+                            </button>
+                            <button class="command-btn" onclick="triggerCommand('trade')">
+                                <span class="command-icon">🏪</span>
+                                <span>Trade Wares</span>
+                            </button>
+                            <button class="command-btn" onclick="toggleBuySubmenu()">
+                                <span class="command-icon">💰</span>
+                                <span>Buy Item</span>
+                            </button>
+                            <button class="command-btn" onclick="toggleSellSubmenu()">
+                                <span class="command-icon">🪙</span>
+                                <span>Sell Item</span>
+                            </button>
+                            <button class="command-btn" onclick="triggerCommand('ask_quest')">
+                                <span class="command-icon">📜</span>
+                                <span>Ask Quest</span>
+                            </button>
+                            <button class="command-btn" onclick="triggerCommand('ask_location')">
+                                <span class="command-icon">🗺️</span>
+                                <span>Location Info</span>
+                            </button>
+                            <button class="command-btn" onclick="triggerCommand('ask_about_npc')">
+                                <span class="command-icon">👤</span>
+                                <span>NPC Lore</span>
+                            </button>
+                            <button class="command-btn" onclick="triggerCommand('goodbye')">
+                                <span class="command-icon">🚪</span>
+                                <span>Goodbye</span>
+                            </button>
+                        </div>
+
+                        <!-- Submenus for Buying / Selling -->
+                        <div class="submenu-panel" id="buy-submenu">
+                            <div class="submenu-title">Select Item to Buy</div>
+                            <div id="buy-submenu-items" style="display:flex; flex-wrap:wrap; gap:0.4rem; width:100%;">
+                                <!-- Dynamically filled based on selected NPC -->
+                            </div>
+                        </div>
+
+                        <div class="submenu-panel" id="sell-submenu">
+                            <div class="submenu-title">Select Item to Sell</div>
+                            <div id="sell-submenu-items" style="display:flex; flex-wrap:wrap; gap:0.4rem; width:100%;">
+                                <!-- Dynamically filled based on player inventory -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Free Text Input -->
+                    <div class="free-text-area">
+                        <input type="text" class="free-text-input" id="free-text-input"
+                               placeholder="Or type a custom message..." disabled>
+                        <button class="send-btn" id="send-btn" disabled onclick="sendFreeText()">
+                            <span class="spinner" id="send-spinner"></span>
+                            <span id="send-btn-text">Send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Status Panel -->
+            <div class="panel status-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="panel-title-icon">📜</span> Character Sheet
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <!-- Player Name Info -->
+                    <div class="player-section">
+                        <div class="player-section-header">
+                            <div class="player-section-title">⚔️ Adventurer Profile</div>
+                            <button class="settings-icon-btn" onclick="openSettings()">⚙️ Settings</button>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span id="sidebar-player-name" style="font-weight:700; color:var(--text-bright); font-size:1.05rem;">Adventurer</span>
+                            <span id="sidebar-player-class" class="quest-status in_progress" style="text-transform:capitalize; font-size:0.75rem;">Warrior</span>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- NPC Emotion -->
+                    <div class="emotion-section" id="emotion-section">
+                        <div class="emotion-header">
+                            <span class="emotion-label">❤️ NPC Emotion</span>
+                            <span class="emotion-state neutral" id="emotion-badge">Neutral</span>
+                        </div>
+                        <div class="trust-bar-track">
+                            <div class="trust-bar-fill medium" id="trust-bar" style="width: 50%;"></div>
+                        </div>
+                        <div class="trust-value" id="trust-value">Trust: 50/100</div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Dynamic Inventory Display -->
+                    <div class="inventory-section">
+                        <div class="inventory-title">🎒 Inventory</div>
+                        <div class="inventory-list" id="sidebar-inventory-list">
+                            <div class="quest-empty">Empty bag. Buy items to start!</div>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Quest Tracker -->
+                    <div class="quest-section">
+                        <div class="quest-section-title">📋 Quest Journal</div>
+                        <div class="quest-list" id="quest-list">
+                            <div class="quest-empty">No quests yet. Talk to NPCs to begin!</div>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Recent History -->
+                    <div class="history-section">
+                        <div class="history-title">📊 Recent Activity</div>
+                        <div class="history-list" id="history-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         JAVASCRIPT — RPG ENGINE
+         ═══════════════════════════════════════════════════════════════ -->
+    <script>
+        const API = "";
+
+        // ─── State ──────────────────────────────────────────────────
+        let state = {
+            selectedNPC: null,
+            npcs: [],
+            isLoading: false,
+            currentOptions: [],
+            currentPlayer: null,
+            currentPlayerClass: 'warrior',
+            playerGold: 100,
+            inventory: [],
+            settingSelectedClass: 'warrior'
+        };
+
+        const NPC_EMOJIS = {
+            "Captain Aldric": "🛡️",
+            "Mira": "🏪",
+            "Elder Thorn": "🌿",
+            "Shade": "🗡️"
+        };
+
+        const QUEST_NAMES = {
+            "main_frostbane": "Find the Frostbane Katana",
+            "main_enter_keep": "Gain Entry to the Inner Keep",
+            "side_shadow_guild": "Shadow Guild Initiation",
+            "side_elder_relic": "The Ancient Relic"
+        };
+
+        // Class selector logic on registration
+        document.querySelectorAll('#registration-overlay .class-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const parent = this.parentElement;
+                parent.querySelectorAll('.class-card').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                state.settingSelectedClass = this.getAttribute('data-class');
+            });
+        });
+
+        // ─── Registration Submit ─────────────────────────────────────
+        async function submitRegistration() {
+            const nameInput = document.getElementById('reg-player-name').value.trim();
+            if (!nameInput) {
+                alert('Please enter your adventurer name!');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API}/register_player`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        player_name: nameInput,
+                        character_class: state.settingSelectedClass
+                    })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('kf_player_name', data.player_name);
+                    state.currentPlayer = data.player_name;
+                    state.currentPlayerClass = data.character_class;
+                    state.playerGold = data.gold;
+                    
+                    document.getElementById('registration-overlay').style.display = 'none';
+                    
+                    // Trigger init
+                    await init();
+                } else {
+                    alert('Registration failed!');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Connection error registering player.');
+            }
+        }
+
+        // ─── Player Login check ──────────────────────────────────────
+        function checkLoginState() {
+            const storedName = localStorage.getItem('kf_player_name');
+            if (storedName) {
+                state.currentPlayer = storedName;
+                document.getElementById('registration-overlay').style.display = 'none';
+                init();
+            } else {
+                document.getElementById('registration-overlay').style.display = 'flex';
+            }
+        }
+
+        // ─── Settings Modal Logic ────────────────────────────────────
+        function openSettings() {
+            document.getElementById('settings-modal').style.display = 'flex';
+            // Set current active card in settings
+            document.querySelectorAll('#settings-modal .class-card').forEach(c => {
+                c.classList.remove('active');
+                if (c.getAttribute('id') === `set-class-${state.currentPlayerClass}`) {
+                    c.classList.add('active');
+                }
+            });
+            state.settingSelectedClass = state.currentPlayerClass;
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+
+        function setClassOption(className) {
+            document.querySelectorAll('#settings-modal .class-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`set-class-${className}`).classList.add('active');
+            state.settingSelectedClass = className;
+        }
+
+        async function saveSettingsClass() {
+            try {
+                const res = await fetch(`${API}/update_character_class`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        player_name: state.currentPlayer,
+                        character_class: state.settingSelectedClass
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    state.currentPlayerClass = data.character_class;
+                    document.getElementById('sidebar-player-class').textContent = data.character_class;
+                    closeSettings();
+                    // Load NPC response to greet player in new class
+                    triggerCommand('greeting');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to update character class.');
+            }
+        }
+
+        function logoutPlayer() {
+            localStorage.removeItem('kf_player_name');
+            state.currentPlayer = null;
+            location.reload();
+        }
+
+        // ─── Command Suggester Handlers ────────────────────────────────
+        function triggerCommand(intentType) {
+            let inputMsg = '';
+            if (intentType === 'greeting') {
+                const classGreeting = {
+                    warrior: "Hail! I am a Warrior seeking combat or glory.",
+                    mage: "Greetings, friend. I study the arcane arts.",
+                    rogue: "Hey. Keep your voice down. I stay in the shadows.",
+                    cleric: "Peace be with you. I bring the light of the heavens."
+                };
+                inputMsg = classGreeting[state.currentPlayerClass] || "Hello, how are you?";
+            } else if (intentType === 'trade') {
+                inputMsg = "Show me your wares. Let us trade.";
+            } else if (intentType === 'ask_quest') {
+                inputMsg = "Do you have any tasks, quests, or missions for me?";
+            } else if (intentType === 'ask_location') {
+                inputMsg = "Tell me about this location. Where am I?";
+            } else if (intentType === 'ask_about_npc') {
+                inputMsg = "Tell me about yourself. Who are you?";
+            } else if (intentType === 'goodbye') {
+                inputMsg = "I must go. Farewell.";
+            }
+            
+            // Close submenus
+            document.getElementById('buy-submenu').style.display = 'none';
+            document.getElementById('sell-submenu').style.display = 'none';
+            
+            sendDialogue(inputMsg);
+        }
+
+        // Submenus Buy/Sell
+        async function toggleBuySubmenu() {
+            const buyPanel = document.getElementById('buy-submenu');
+            const sellPanel = document.getElementById('sell-submenu');
+            sellPanel.style.display = 'none';
+
+            if (buyPanel.style.display === 'flex') {
+                buyPanel.style.display = 'none';
+                return;
+            }
+
+            buyPanel.style.display = 'flex';
+            const container = document.getElementById('buy-submenu-items');
+            container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-muted);">Fetching shop items...</span>';
+
+            if (!state.selectedNPC) {
+                container.innerHTML = '<span style="font-size:0.75rem; color:var(--crimson);">Select an NPC first!</span>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API}/npc_info/${encodeURIComponent(state.selectedNPC)}`);
+                const npc = await res.json();
+                const shopRes = await fetch(`${API}/npcs`);
+                const shopData = await shopRes.json();
+                
+                // Fetch shop items specifically
+                const detailRes = await fetch(`${API}/player_inventory/${encodeURIComponent(state.currentPlayer)}`); // fallback helper, let's fetch shop inventory directly:
+                // Let's do a logic check: Mira sells Katana, Sword, Knife, Potion, Shield, Bow, Map. Shade sells Cloak, Potion.
+                // We'll write dynamic items depending on selected NPC:
+                let shopItems = [];
+                if (state.selectedNPC === "Mira") {
+                    shopItems = [
+                        {id: "frostbane_katana", name: "Frostbane Katana", price: 50, icon: "⚔️"},
+                        {id: "steel_sword", name: "Steel Sword", price: 15, icon: "🗡️"},
+                        {id: "hunting_knife", name: "Hunting Knife", price: 5, icon: "🔪"},
+                        {id: "health_potion", name: "Health Potion", price: 10, icon: "🧪"},
+                        {id: "iron_shield", name: "Iron Shield", price: 30, icon: "🛡️"},
+                        {id: "thornwood_bow", name: "Thornwood Bow", price: 75, icon: "🏹"},
+                        {id: "ancient_map", name: "Ancient Map", price: 25, icon: "🗺️"}
+                    ];
+                } else if (state.selectedNPC === "Shade") {
+                    shopItems = [
+                        {id: "shadow_cloak", name: "Shadow Cloak", price: 40, icon: "🧥"},
+                        {id: "health_potion", name: "Health Potion", price: 15, icon: "🧪"}
+                    ];
+                }
+
+                container.innerHTML = '';
+                if (shopItems.length === 0) {
+                    container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-muted);">This NPC has no items for sale.</span>';
+                    return;
+                }
+
+                shopItems.forEach(item => {
+                    const btn = document.createElement('button');
+                    btn.className = 'submenu-item-btn';
+                    btn.innerHTML = `${item.icon} <span>Buy ${item.name}</span> <span class="submenu-item-price">${item.price}g</span>`;
+                    btn.onclick = () => {
+                        sendDialogue(`I want to buy the ${item.name}`);
+                        buyPanel.style.display = 'none';
+                    };
+                    container.appendChild(btn);
+                });
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = '<span style="font-size:0.75rem; color:var(--crimson);">Failed to load shop items.</span>';
+            }
+        }
+
+        async function toggleSellSubmenu() {
+            const buyPanel = document.getElementById('buy-submenu');
+            const sellPanel = document.getElementById('sell-submenu');
+            buyPanel.style.display = 'none';
+
+            if (sellPanel.style.display === 'flex') {
+                sellPanel.style.display = 'none';
+                return;
+            }
+
+            sellPanel.style.display = 'flex';
+            const container = document.getElementById('sell-submenu-items');
+            container.innerHTML = '';
+
+            if (state.inventory.length === 0) {
+                container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-muted);">Your inventory is empty!</span>';
+                return;
+            }
+
+            // Estimate sell price as 50% of the value of items
+            const ITEM_BASE_PRICES = {
+                "Frostbane Katana": 50,
+                "Steel Sword": 15,
+                "Hunting Knife": 5,
+                "Health Potion": 10,
+                "Iron Shield": 30,
+                "Shadow Cloak": 40,
+                "Thornwood Bow": 75,
+                "Ancient Map": 25,
+                "Dragon Scale": 200
+            };
+
+            state.inventory.forEach(item => {
+                const baseVal = ITEM_BASE_PRICES[item.name] || 10;
+                const sellVal = Math.max(1, Math.floor(baseVal * 0.5));
+                const btn = document.createElement('button');
+                btn.className = 'submenu-item-btn';
+                btn.innerHTML = `🎒 <span>Sell ${item.name}</span> <span class="submenu-item-price" style="color:var(--emerald)">+${sellVal}g</span>`;
+                btn.onclick = () => {
+                    sendDialogue(`I want to sell my ${item.name}`);
+                    sellPanel.style.display = 'none';
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        // ─── Utilities ──────────────────────────────────────────────
+        function formatTime(iso) {
+            if (!iso) return '';
+            try {
+                return new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            } catch { return iso; }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ─── NPC List Loading ───────────────────────────────────────
+        async function loadNPCs() {
+            try {
+                const res = await fetch(`${API}/npcs`);
+                const data = await res.json();
+                state.npcs = data.npcs || [];
+
+                const container = document.getElementById('npc-list');
+                container.innerHTML = '';
+
+                state.npcs.forEach(npc => {
+                    const item = document.createElement('div');
+                    item.className = 'npc-item' + (state.selectedNPC === npc.npc_name ? ' active' : '');
+                    item.onclick = () => selectNPC(npc.npc_name);
+
+                    const emoji = NPC_EMOJIS[npc.npc_name] || '👤';
+                    item.innerHTML = `
+                        <div class="npc-avatar">${emoji}</div>
+                        <div class="npc-info">
+                            <div class="npc-name">${escapeHtml(npc.npc_name)}</div>
+                            <div class="npc-location">📍 ${escapeHtml(npc.location || 'Unknown')}</div>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+
+                document.getElementById('npc-count-badge').textContent = `${state.npcs.length} total`;
+                document.getElementById('stat-npcs').textContent = state.npcs.length;
+
+            } catch (err) {
+                console.error('Failed to load NPCs:', err);
+            }
+        }
+
+        // ─── Select NPC ─────────────────────────────────────────────
+        async function selectNPC(npcName) {
+            state.selectedNPC = npcName;
+
+            // Close submenus
+            document.getElementById('buy-submenu').style.display = 'none';
+            document.getElementById('sell-submenu').style.display = 'none';
+
+            // Update active state in list
+            document.querySelectorAll('.npc-item').forEach((item, i) => {
+                const name = state.npcs[i]?.npc_name;
+                item.className = 'npc-item' + (name === npcName ? ' active' : '');
+            });
+
+            // Update header
+            const emoji = NPC_EMOJIS[npcName] || '👤';
+            document.getElementById('dialogue-panel-title').textContent = `${emoji} ${npcName}`;
+
+            // Enable input
+            document.getElementById('free-text-input').disabled = false;
+            document.getElementById('send-btn').disabled = false;
+
+            // Load NPC info
+            await updateNPCStatus(npcName);
+
+            // Load conversation history for this NPC
+            await loadConversationForNPC(npcName);
+            
+            // Trigger auto greet greeting on selecting NPC for first time if chat is empty
+            const chatArea = document.getElementById('chat-area');
+            if (chatArea.querySelector('.empty-state')) {
+                triggerCommand('greeting');
+            }
+        }
+
+        // ─── Update NPC Status ──────────────────────────────────────
+        async function updateNPCStatus(npcName) {
+            try {
+                const res = await fetch(`${API}/npc_info/${encodeURIComponent(npcName)}`);
+                const npc = await res.json();
+
+                // Update emotion badge
+                const badge = document.getElementById('emotion-badge');
+                badge.textContent = npc.emotion_state || 'Neutral';
+                badge.className = `emotion-state ${npc.emotion_state || 'neutral'}`;
+
+                // Update trust bar
+                const trust = npc.trust_level || 50;
+                const bar = document.getElementById('trust-bar');
+                bar.style.width = `${trust}%`;
+                bar.className = 'trust-bar-fill ' + (
+                    trust >= 80 ? 'max' :
+                    trust >= 60 ? 'high' :
+                    trust >= 40 ? 'medium' : 'low'
+                );
+                document.getElementById('trust-value').textContent = `Trust: ${trust}/100`;
+
+            } catch (err) {
+                console.error('Failed to load NPC info:', err);
+            }
+        }
+
+        // ─── Load Conversation History ──────────────────────────────
+        async function loadConversationForNPC(npcName) {
+            const chatArea = document.getElementById('chat-area');
+            const playerName = state.currentPlayer;
+
+            try {
+                const res = await fetch(`${API}/conversations`);
+                const data = await res.json();
+                const convos = (data.conversations || []).filter(c =>
+                    c.npc_name === npcName &&
+                    (c.player_name === playerName || c.player_name === 'All')
+                );
+
+                chatArea.innerHTML = '';
+
+                if (convos.length === 0) {
+                    chatArea.innerHTML = `
+                        <div class="empty-state" id="chat-empty">
+                            <div class="empty-state-icon">💬</div>
+                            <div class="empty-state-text">
+                                No conversation history with ${escapeHtml(npcName)} yet.<br>
+                                Greet them or click suggestions to start!
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('choices-area').style.display = 'none';
+                    return;
+                }
+
+                // Render chat bubbles (oldest first)
+                const sorted = convos.slice().reverse();
+                sorted.forEach(conv => {
+                    // Player bubble
+                    if (conv.player_input && conv.player_name !== 'All') {
+                        const playerBubble = document.createElement('div');
+                        playerBubble.className = 'chat-bubble player';
+                        playerBubble.innerHTML = `
+                            <div class="chat-sender">${escapeHtml(conv.player_name)}</div>
+                            ${escapeHtml(conv.player_input)}
+                            <div class="chat-timestamp">${formatTime(conv.timestamp)}</div>
+                        `;
+                        chatArea.appendChild(playerBubble);
+                    }
+
+                    // NPC bubble
+                    const npcBubble = document.createElement('div');
+                    npcBubble.className = 'chat-bubble npc';
+                    let actionHtml = '';
+                    if (conv.npc_action && conv.npc_action !== 'none') {
+                        actionHtml = `<div class="action-badge">⚡ ${escapeHtml(conv.npc_action)}</div>`;
+                    }
+                    npcBubble.innerHTML = `
+                        <div class="chat-sender">${escapeHtml(conv.npc_name)}</div>
+                        ${escapeHtml(conv.npc_response)}
+                        ${actionHtml}
+                        <div class="chat-timestamp">${formatTime(conv.timestamp)}</div>
+                    `;
+                    chatArea.appendChild(npcBubble);
+                });
+
+                chatArea.scrollTop = chatArea.scrollHeight;
+
+                // Restore options for the last turn to allow continuing the conversation
+                const lastConv = sorted[sorted.length - 1];
+                if (lastConv && lastConv.player_options && lastConv.player_options.length > 0) {
+                    state.currentOptions = lastConv.player_options;
+                    renderChoices(lastConv.player_options);
+                } else {
+                    document.getElementById('choices-area').style.display = 'none';
+                }
+
+            } catch (err) {
+                console.error('Failed to load conversations:', err);
+            }
+        }
+
+        // ─── Send Dialogue ──────────────────────────────────────────
+        async function sendDialogue(playerInput, optionIndex = -1) {
+            if (state.isLoading || !state.selectedNPC || !state.currentPlayer) return;
+            state.isLoading = true;
+
+            const playerName = state.currentPlayer;
+            const npcName = state.selectedNPC;
+            const chatArea = document.getElementById('chat-area');
+
+            setInputsDisabled(true);
+
+            // Remove empty state
+            const emptyEl = document.getElementById('chat-empty');
+            if (emptyEl) emptyEl.remove();
+
+            // Add player bubble
+            if (playerInput) {
+                const playerBubble = document.createElement('div');
+                playerBubble.className = 'chat-bubble player';
+                playerBubble.innerHTML = `
+                    <div class="chat-sender">${escapeHtml(playerName)}</div>
+                    ${escapeHtml(playerInput)}
+                    <div class="chat-timestamp">${formatTime(new Date().toISOString())}</div>
+                `;
+                chatArea.appendChild(playerBubble);
+                chatArea.scrollTop = chatArea.scrollHeight;
+            }
+
+            document.getElementById('typing-indicator').classList.add('visible');
+            document.getElementById('dialogue-status').textContent = 'Generating...';
+            document.getElementById('choices-area').style.display = 'none';
+
+            try {
+                // Send dialogue request
+                const res = await fetch(`${API}/get_response`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        player_name: playerName,
+                        npc_name: npcName,
+                        player_input: playerInput || '(Approaches the NPC)',
+                        selected_option_index: optionIndex
+                    })
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const rpgResponse = await res.json();
+
+                document.getElementById('typing-indicator').classList.remove('visible');
+
+                // Add NPC response bubble
+                const npcBubble = document.createElement('div');
+                npcBubble.className = 'chat-bubble npc';
+                
+                // Show action badge if relevant
+                let actionStr = 'none';
+                if (rpgResponse.quest_updates && rpgResponse.quest_updates.status) {
+                    actionStr = `Quest: ${rpgResponse.quest_updates.status}`;
+                } else if (rpgResponse.inventory_changes && rpgResponse.inventory_changes.gold_change) {
+                    actionStr = `Gold: ${rpgResponse.inventory_changes.gold_change}g`;
+                }
+
+                let actionHtml = '';
+                if (actionStr !== 'none') {
+                    actionHtml = `<div class="action-badge">⚡ ${escapeHtml(actionStr)}</div>`;
+                }
+                
+                npcBubble.innerHTML = `
+                    <div class="chat-sender">${escapeHtml(npcName)}</div>
+                    ${escapeHtml(rpgResponse.npc_response)}
+                    ${actionHtml}
+                    <div class="chat-timestamp">${formatTime(new Date().toISOString())}</div>
+                `;
+                chatArea.appendChild(npcBubble);
+                chatArea.scrollTop = chatArea.scrollHeight;
+
+                // Show player options (choices generated by AI)
+                if (rpgResponse.player_options && rpgResponse.player_options.length > 0) {
+                    state.currentOptions = rpgResponse.player_options;
+                    renderChoices(rpgResponse.player_options);
+                }
+
+                // Update NPC status (emotions & trust)
+                await updateNPCStatus(npcName);
+
+                // Update player details dynamically from DB
+                await loadPlayerStats();
+
+                // Reload quest list
+                await loadQuests();
+
+                // Add to history list
+                addHistoryItem(playerName, npcName, playerInput);
+
+                document.getElementById('dialogue-status').textContent = 'Ready';
+
+            } catch (err) {
+                console.error('Dialogue failed:', err);
+                document.getElementById('typing-indicator').classList.remove('visible');
+                document.getElementById('dialogue-status').textContent = 'Error';
+
+                const errorBubble = document.createElement('div');
+                errorBubble.className = 'chat-bubble npc';
+                errorBubble.innerHTML = `
+                    <div class="chat-sender" style="color:var(--crimson)">System</div>
+                    Failed to generate response. Check if model is loaded.
+                `;
+                chatArea.appendChild(errorBubble);
+                chatArea.scrollTop = chatArea.scrollHeight;
+            } finally {
+                state.isLoading = false;
+                setInputsDisabled(false);
+            }
+        }
+
+        // ─── Render Choice Buttons ──────────────────────────────────
+        function renderChoices(options) {
+            const container = document.getElementById('choices-container');
+            const area = document.getElementById('choices-area');
+            container.innerHTML = '';
+            area.style.display = 'flex';
+
+            options.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.innerHTML = `
+                    <span class="choice-num">${i + 1}</span>
+                    <span class="choice-text">${escapeHtml(opt)}</span>
+                `;
+                btn.onclick = () => {
+                    sendDialogue(opt, i + 1);
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        // ─── Free Text Send ─────────────────────────────────────────
+        function sendFreeText() {
+            const input = document.getElementById('free-text-input');
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            sendDialogue(text, -1);
+        }
+
+        // ─── Keyboard Support ───────────────────────────────────────
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && document.activeElement.id === 'free-text-input') {
+                e.preventDefault();
+                sendFreeText();
+                return;
+            }
+
+            if (!state.isLoading && state.currentOptions.length > 0) {
+                const num = parseInt(e.key);
+                if (num >= 1 && num <= state.currentOptions.length) {
+                    if (document.activeElement.tagName !== 'INPUT') {
+                        e.preventDefault();
+                        sendDialogue(state.currentOptions[num - 1], num);
+                    }
+                }
+            }
+        });
+
+        // ─── UI Inputs Control ───────────────────────────────────────
+        function setInputsDisabled(disabled) {
+            document.getElementById('free-text-input').disabled = disabled;
+            document.getElementById('send-btn').disabled = disabled;
+            document.querySelectorAll('.choice-btn').forEach(b => b.disabled = disabled);
+            document.querySelectorAll('.command-btn').forEach(b => b.disabled = disabled);
+
+            const spinner = document.getElementById('send-spinner');
+            const btnText = document.getElementById('send-btn-text');
+            spinner.style.display = disabled ? 'inline-block' : 'none';
+            btnText.textContent = disabled ? '...' : 'Send';
+        }
+
+        // ─── Load Player Stats & Inventory ───────────────────────────
+        async function loadPlayerStats() {
+            if (!state.currentPlayer) return;
+            try {
+                const res = await fetch(`${API}/player_inventory/${encodeURIComponent(state.currentPlayer)}`);
+                const data = await res.json();
+                
+                state.playerGold = data.gold;
+                state.currentPlayerClass = data.character_class;
+                state.inventory = data.items || [];
+                
+                // Update stats bar gold
+                document.getElementById('stat-gold').textContent = `${data.gold}g`;
+                
+                // Update sidebar character panel
+                document.getElementById('sidebar-player-name').textContent = state.currentPlayer;
+                document.getElementById('sidebar-player-class').textContent = data.character_class;
+                
+                // Render sidebar inventory list
+                const container = document.getElementById('sidebar-inventory-list');
+                container.innerHTML = '';
+                
+                if (state.inventory.length === 0) {
+                    container.innerHTML = '<div class="quest-empty">Empty bag. Buy items to start!</div>';
+                    return;
+                }
+                
+                state.inventory.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'inventory-item';
+                    
+                    let icon = '🎒';
+                    if (item.name.includes("Katana") || item.name.includes("Sword")) icon = '⚔️';
+                    else if (item.name.includes("Knife")) icon = '🔪';
+                    else if (item.name.includes("Potion")) icon = '🧪';
+                    else if (item.name.includes("Shield")) icon = '🛡️';
+                    else if (item.name.includes("Cloak")) icon = '🧥';
+                    else if (item.name.includes("Bow")) icon = '🏹';
+                    else if (item.name.includes("Map")) icon = '🗺️';
+                    else if (item.name.includes("Scale")) icon = '🐉';
+                    
+                    el.innerHTML = `
+                        <div class="inventory-item-name">${icon} ${escapeHtml(item.name)}</div>
+                        <div class="inventory-item-qty">x${item.quantity}</div>
+                    `;
+                    container.appendChild(el);
+                });
+            } catch (err) {
+                console.error('Failed to load player stats:', err);
+            }
+        }
+
+        // ─── Quest Loading ──────────────────────────────────────────
+        async function loadQuests() {
+            if (!state.currentPlayer) return;
+            try {
+                const res = await fetch(`${API}/quest_state/${encodeURIComponent(state.currentPlayer)}`);
+                const data = await res.json();
+                const quests = data.quests || [];
+
+                const container = document.getElementById('quest-list');
+                container.innerHTML = '';
+
+                if (quests.length === 0) {
+                    container.innerHTML = '<div class="quest-empty">No active quests. Greet NPCs!</div>';
+                    document.getElementById('stat-quests').textContent = '0';
+                    return;
+                }
+
+                const activeCount = quests.filter(q => q.status === 'in_progress').length;
+                document.getElementById('stat-quests').textContent = activeCount;
+
+                quests.forEach(q => {
+                    const item = document.createElement('div');
+                    item.className = 'quest-item';
+                    const name = QUEST_NAMES[q.quest_id] || q.quest_id;
+                    const statusClass = q.status.replace(' ', '_');
+                    item.innerHTML = `
+                        <div class="quest-name">${escapeHtml(name)}</div>
+                        <span class="quest-status ${statusClass}">${q.status.replace('_', ' ')}</span>
+                        <div class="quest-step">Step ${q.current_step}</div>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (err) {
+                console.error('Failed to load quests:', err);
+            }
+        }
+
+        // ─── Stats Update ───────────────────────────────────────────
+        async function updateStats() {
+            try {
+                const res = await fetch(`${API}/conversations`);
+                const data = await res.json();
+                const count = (data.conversations || []).filter(c => c.player_name === state.currentPlayer).length;
+                document.getElementById('stat-conversations').textContent = count;
+            } catch (err) {
+                console.error('Stats update failed:', err);
+            }
+        }
+
+        // ─── History Feed ───────────────────────────────────────────
+        function addHistoryItem(playerName, npcName, input) {
+            const list = document.getElementById('history-list');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `<strong>${escapeHtml(playerName)}</strong> → ${escapeHtml(npcName)}: "${escapeHtml((input || '').substring(0, 40))}${(input || '').length > 40 ? '...' : ''}"`;
+
+            list.insertBefore(item, list.firstChild);
+
+            while (list.children.length > 5) {
+                list.removeChild(list.lastChild);
+            }
+        }
+
+        // ─── Initialize ─────────────────────────────────────────────
+        async function init() {
+            await loadPlayerStats();
+            await loadNPCs();
+            await updateStats();
+            await loadQuests();
+
+            // Auto-select first NPC
+            if (state.npcs.length > 0 && !state.selectedNPC) {
+                selectNPC(state.npcs[0].npc_name);
+            }
+        }
+
+        checkLoginState();
+
+        // Poll for updates every 4s
+        setInterval(async () => {
+            if (state.currentPlayer) {
+                if (state.selectedNPC) {
+                    await updateNPCStatus(state.selectedNPC);
+                }
+                await loadPlayerStats();
+                await loadQuests();
+                await updateStats();
+            }
+        }, 4000);
+    </script>
+</body>
+</html>

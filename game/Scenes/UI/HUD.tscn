@@ -1,0 +1,121 @@
+[gd_scene load_steps=5 format=3 uid="uid://bi38g1sjfumte"]
+
+[ext_resource type="Script" path="res://Scenes/UI/hud.gd" id="1_3sbre"]
+[ext_resource type="Texture2D" uid="uid://bsmvr73hadkh7" path="res://Assets/Ninja Adventure/Ui/Theme/ThemeWood/nine_path_panel_disabled.png" id="2_et5kf"]
+[ext_resource type="Texture2D" uid="uid://bsunuvu8s7mlk" path="res://Assets/Ninja Adventure/Items/Treasure/GoldCoin.png" id="3_bia73"]
+[ext_resource type="Texture2D" uid="uid://deaqigxqedgqs" path="res://Assets/Ninja Adventure/Items/Weapons/Sword2/Sprite.png" id="4_skklv"]
+
+[node name="Hud" type="CanvasLayer"]
+script = ExtResource("1_3sbre")
+
+[node name="NinePatchRect" type="NinePatchRect" parent="."]
+offset_left = 829.0
+offset_top = 24.0
+offset_right = 1128.0
+offset_bottom = 72.0
+texture = ExtResource("2_et5kf")
+region_rect = Rect2(0, 0, 16, 16)
+patch_margin_left = 7
+patch_margin_top = 7
+patch_margin_right = 6
+patch_margin_bottom = 6
+
+[node name="MarginContainer" type="MarginContainer" parent="NinePatchRect"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="HBoxContainer" type="HBoxContainer" parent="NinePatchRect/MarginContainer"]
+layout_mode = 2
+
+[node name="TextureRect1" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect2" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect3" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect4" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect5" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect6" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect7" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect8" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("3_bia73")
+
+[node name="TextureRect9" type="TextureRect" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+texture = ExtResource("4_skklv")
+
+[node name="GoldLabel" type="Label" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 32)
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 24
+text = "Gold: 0"
+
+[node name="HelpButton" type="Button" parent="NinePatchRect/MarginContainer/HBoxContainer"]
+layout_mode = 2
+text = "Help"
+
+[node name="HelpDialog" type="WindowDialog" parent="Hud"]
+layout_mode = 2
+title = "How to Play"
+
+[node name="MarginContainer" type="MarginContainer" parent="HelpDialog"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HelpDialog/MarginContainer"]
+layout_mode = 2
+custom_constants/separation = 12
+
+[node name="HelpText" type="Label" parent="HelpDialog/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "How to Play:\n- Use Arrow keys or WASD to move.\n- Press Space to interact with NPCs and shopkeepers.\n- Buy weapons or potions from Mira. She accepts gold coins found in the world.\n- When you ask to buy an item, the merchant will tell you the cost and offer choices.\n- If you choose to buy, your gold is deducted and the item is added to your inventory.\n- Press I to open your inventory and inspect your items.\n- Talk to each character to learn more and progress quests.\n\nAbout the Game:\n- Kingdom Frontier is a story-driven RPG with market, gate, forest, and shadow tavern scenes.\n- Each NPC plays a role in the story and follows a storyline path tied to your choices.\n- Returning to the same NPC changes their dialogue based on your previous visits and relationships.\n\nNPC Roles:\n- Mira: Merchant at the Market Square. Buys and sells weapons, potions, and supplies. She remembers returning customers and adapts her offers.\n- Captain Aldric: Castle Gate guard. He allows entry to the keep when you have the right item and tests your courage.\n- Elder Thorn: Forest elder with secrets and quests. She shares ancient lore and only trusts certain heroes.\n- Shade: Shadow Guild agent offering covert missions and loyalty tests.\n\nUnity Compatibility:\n- Yes, this game can integrate with Unity. The backend API is HTTP-based, so Unity can call the same endpoints with C#.\n- In Unity, create UI panels for dialogue, options, and inventory. Use a simple C# script to send JSON requests to http://127.0.0.1:8000/get_response.\n- Parse the JSON response, show NPC text, display the 4 option buttons, and update gold/inventory locally.\n- This is beginner-friendly: start with a TextMeshPro text box, 4 UI Buttons, and UnityWebRequest for network calls.\n\nGold Tips:\n- Find gold hidden around the map and in chests.\n- Buy useful gear before tough fights."
+
+[node name="CloseButton" type="Button" parent="HelpDialog/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Close"

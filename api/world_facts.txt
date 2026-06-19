@@ -1,0 +1,15 @@
+Kingdom Frontier is a medieval fantasy realm nestled between the Thornwall Mountains and the Azure Coast.
+The capital city, Ironhaven, serves as the central hub where adventurers gather to seek quests and fortune.
+The Market Square in Ironhaven is a bustling trade center where Mira the Merchant sells weapons, potions, and supplies.
+The Castle Gate is the only passage into the inner keep, guarded day and night by Captain Aldric and his Royal Guard.
+The Sacred Grove lies at the forest's edge, where Elder Thorn communes with ancient spirits and nature's wisdom.
+The Dockside Tavern is a shadowy establishment where the Shadow Guild conducts covert dealings through their agent known only as Shade.
+The player is a newly arrived adventurer seeking to prove their worth and gain entry to the King's court.
+To enter the inner keep, an adventurer must earn the trust of Captain Aldric by completing a worthy deed.
+Mira the Merchant sells a legendary katana called Frostbane for 8 gold, which is said to impress even the Royal Guard.
+Gold coins can be found scattered in hidden places around Ironhaven — behind crates in the market, near the old well, and in the forest clearing.
+The Shadow Guild operates in secret, offering lucrative but morally questionable missions to those who prove their discretion.
+Elder Thorn knows the location of an ancient relic hidden deep in the Thornwall Mountains, but only shares this knowledge with those he trusts.
+The Royal Guard protects the kingdom from threats beyond the Thornwall Mountains, where dark creatures stir.
+The Forest Wardens are an ancient order dedicated to preserving the balance between civilization and the wild.
+There are rumors of a dragon awakening in the Thornwall Mountains, and the King seeks brave adventurers to investigate.
