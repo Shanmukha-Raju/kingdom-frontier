@@ -3,33 +3,18 @@ import os
 sys.path.append(os.path.abspath("api"))
 
 import json
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
 from build_vector_store import load_or_build_vector_store
 from game_logic import GameLogic
-from main import clean_player_options  # Import the new option cleaning logic
+from main import clean_player_options, format_messages_for_gemini, GeminiResponseSchema
 
-print("Loading model and tokenizer...")
-model_id = "Qwen/Qwen2.5-0.5B-Instruct"
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    torch_dtype="auto",
-    device_map="auto"
-)
-
-# Use the same parameters as updated in api/main.py
-hf_pipeline = pipeline(
-    "text-generation",
-    model=model,
-    tokenizer=tokenizer,
-    max_new_tokens=200,
-    temperature=0.85,
-    top_p=0.9,
-    repetition_penalty=1.05,
-    do_sample=True,
-    return_full_text=False,
-    clean_up_tokenization_spaces=False
-)
+load_dotenv()
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY is not set in environment or .env file!")
+gemini_client = genai.Client(api_key=api_key)
 
 vector_store = load_or_build_vector_store(None)
 
@@ -157,32 +142,46 @@ Player says: {player_input}"""
 
         messages.append({"role": "user", "content": current_user_content})
 
-        prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        # Generate using Gemini API
+        gemini_messages, system_instruction = format_messages_for_gemini(messages)
         
-        # Print prompt (only for first turn to keep output clean, unless requested)
-        if step == 0:
-            print("\nPROMPT SENT TO MODEL (TURN 1):")
-            print(prompt_text)
-            print("-" * 40)
-            
-        model_output = hf_pipeline(prompt_text)[0]["generated_text"]
-        print(f"RAW MODEL OUTPUT:\n{model_output}")
-        
-        # Parse
         try:
-            import re
-            cleaned = model_output.strip()
-            if "```json" in cleaned:
-                cleaned = cleaned.split("```json")[1].split("```")[0].strip()
-            start = cleaned.find("{")
-            end = cleaned.rfind("}")
-            parsed = json.loads(cleaned[start:end+1])
+            response = gemini_client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=gemini_messages,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    response_schema=GeminiResponseSchema,
+                    temperature=0.85,
+                ),
+            )
+            model_output = response.text
+            print(f"RAW MODEL OUTPUT:\n{model_output}")
+            parsed = json.loads(model_output)
             npc_resp = parsed["npc_response"]
             raw_options = parsed["player_options"]
         except Exception as e:
-            print(f"Parsing failed: {e}")
-            npc_resp = "PARSING_FAILED_FALLBACK"
-            raw_options = []
+            print(f"Gemini generation failed: {e}. Attempting fallback...")
+            try:
+                response = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=gemini_messages,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.85,
+                    ),
+                )
+                model_output = response.text
+                print(f"RAW MODEL OUTPUT (FALLBACK):\n{model_output}")
+                from main import parse_llm_response
+                parsed = parse_llm_response(model_output)
+                npc_resp = parsed["npc_response"]
+                raw_options = parsed["player_options"]
+            except Exception as fallback_e:
+                print(f"Fallback generation also failed: {fallback_e}")
+                npc_resp = "I'm having trouble thinking straight right now."
+                raw_options = ["Let's try again.", "Farewell."]
 
         # Clean options
         options = clean_player_options(raw_options, logic_res["player_options"])

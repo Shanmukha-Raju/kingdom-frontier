@@ -17,9 +17,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field, model_validator
 
-from langchain_huggingface import HuggingFacePipeline
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-import torch
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
 
 from langchain_core.prompts import PromptTemplate
 from build_vector_store import load_or_build_vector_store
@@ -82,41 +82,30 @@ class RPGResponse(BaseModel):
 
 # ─── Global Resources ────────────────────────────────────────────────
 vector_store = None
-tokenizer = None
-model = None
-hf_pipeline = None
+gemini_client = None
+
+
+class GeminiResponseSchema(BaseModel):
+    npc_response: str = Field(description="What the NPC says to the player describing the outcome and current state in character")
+    player_options: list[str] = Field(description="Exactly 4 dynamic player response options contextually relevant to the scene, with the 4th option always being a farewell/goodbye")
 
 
 # ─── Lifespan ─────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global vector_store, tokenizer, model, hf_pipeline
+    global vector_store, gemini_client
 
     initialize_database()
 
-    print("\n[INFO] Loading local Hugging Face text generation model...")
-
-    model_id = "Qwen/Qwen2.5-0.5B-Instruct"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        torch_dtype="auto",
-        device_map="auto"
-    )
-
-    hf_pipeline = pipeline(
-        "text-generation",
-        model=model,
-        tokenizer=tokenizer,
-        max_new_tokens=200,
-        temperature=0.85,
-        top_p=0.9,
-        repetition_penalty=1.05,
-        do_sample=True,
-        return_full_text=False,
-        clean_up_tokenization_spaces=False
-    )
+    print("\n[INFO] Initializing Gemini API Client...")
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("[WARNING] GEMINI_API_KEY is not set in environment or .env file!")
+    else:
+        print("[INFO] Gemini API Key loaded successfully.")
+    
+    gemini_client = genai.Client(api_key=api_key)
 
     vector_store = load_or_build_vector_store(None)
 
@@ -395,6 +384,31 @@ def update_character_class(req: UpdateClassRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def format_messages_for_gemini(messages_list):
+    gemini_messages = []
+    system_instruction = None
+    for msg in messages_list:
+        role = msg["role"]
+        content = msg["content"]
+        if role == "system":
+            system_instruction = content
+        elif role == "user":
+            gemini_messages.append(
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=content)]
+                )
+            )
+        elif role == "assistant" or role == "model":
+            gemini_messages.append(
+                types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text=content)]
+                )
+            )
+    return gemini_messages, system_instruction
+
+
 # ─── API: Generate NPC Response ───────────────────────────────────────
 
 @app.post("/get_response")
@@ -553,13 +567,43 @@ Player says: {query.player_input or "(Approaches the NPC)"}"""
 
         messages.append({"role": "user", "content": current_user_content})
 
-        # Generate output using template
-        prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        model_output = hf_pipeline(prompt_text)[0]["generated_text"]
-        print(f"\n[DEBUG - LLM RAW OUTPUT]:\n{model_output}\n")
-
-        # Parse LLM response
-        parsed = parse_llm_response(model_output)
+        # Generate output using Gemini API
+        gemini_messages, system_instruction = format_messages_for_gemini(messages)
+        
+        try:
+            response = gemini_client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=gemini_messages,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    response_schema=GeminiResponseSchema,
+                    temperature=0.85,
+                ),
+            )
+            model_output = response.text
+            print(f"\n[DEBUG - GEMINI RAW OUTPUT]:\n{model_output}\n")
+            parsed = json.loads(model_output)
+        except Exception as e:
+            logging.error(f"Gemini API generation failed: {e}. Attempting fallback...")
+            try:
+                response = gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=gemini_messages,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.85,
+                    ),
+                )
+                model_output = response.text
+                print(f"\n[DEBUG - GEMINI FALLBACK RAW OUTPUT]:\n{model_output}\n")
+                parsed = parse_llm_response(model_output)
+            except Exception as fallback_e:
+                logging.error(f"Gemini API fallback also failed: {fallback_e}")
+                parsed = {
+                    "npc_response": "I'm having trouble thinking straight right now. (Failed to contact the guide realm)",
+                    "player_options": ["Let's try again.", "What happened?", "Understood.", "Farewell."]
+                }
 
         # Update NPC emotion
         choice_idx = query.selected_option_index if query.selected_option_index is not None else -1

@@ -12,3 +12,4 @@ transformers
 torch
 sentence-transformers
 accelerate
+google-genai

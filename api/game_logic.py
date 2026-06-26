@@ -60,7 +60,6 @@ INTENT_PATTERNS = {
         "priority": 0
     }
 }
-
 # Item name extraction patterns
 ITEM_NAMES = [
     "frostbane katana", "frostbane", "katana",
