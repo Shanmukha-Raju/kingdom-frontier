@@ -1294,6 +1294,52 @@ async def root():
         return HTMLResponse(content=f"<h3>Error loading page: {str(e)}</h3>", status_code=500)
 
 
+# ─── Delete Player Account ────────────────────────────────────────────
+
+class DeletePlayerRequest(BaseModel):
+    player_name: str
+
+@app.delete("/delete_player/{player_name}")
+async def delete_player(player_name: str):
+    """
+    Permanently deletes all data for a player from the database.
+    Removes records from: Players, Inventory, QuestState,
+    Conversations, Relationships, Memories.
+    """
+    if not player_name or player_name.strip() == "":
+        return JSONResponse(status_code=400, content={"success": False, "message": "Player name cannot be empty."})
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+
+            # Verify player exists
+            c.execute("SELECT player_name FROM Players WHERE player_name = ?", (player_name,))
+            if not c.fetchone():
+                return JSONResponse(status_code=404, content={"success": False, "message": f"Player '{player_name}' not found."})
+
+            # Delete from all player-linked tables
+            tables = [
+                "Inventory",
+                "QuestState",
+                "Relationships",
+                "Memories",
+                "Conversations",
+                "Players",
+            ]
+            for table in tables:
+                c.execute(f"DELETE FROM {table} WHERE player_name = ?", (player_name,))
+
+            conn.commit()
+
+        logging.info(f"[DELETE] Player '{player_name}' and all associated data deleted successfully.")
+        return {"success": True, "message": f"Account for '{player_name}' has been permanently deleted. All data removed."}
+
+    except Exception as e:
+        logging.error(f"Failed to delete player '{player_name}': {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Server error: {str(e)}"})
+
+
 # ─── Error Handler ────────────────────────────────────────────────────
 
 @app.exception_handler(RequestValidationError)

@@ -649,7 +649,21 @@
             <h3>GAME SETTINGS</h3>
             <button class="settings-btn" onclick="showStorylineFromSettings()">Story & Lore</button>
             <button class="settings-btn logout" onclick="handleLogoutFromSettings()">Logout</button>
+            <button class="settings-btn" id="btn-delete-account" style="background: rgba(220,38,38,0.18); border: 1px solid rgba(220,38,38,0.55); color: #fca5a5;" onclick="handleDeleteAccount()">🗑️ Delete Account</button>
             <button class="settings-btn close" onclick="closeSettingsModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- DELETE ACCOUNT CONFIRM OVERLAY -->
+    <div id="delete-confirm-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center;">
+        <div class="glass-panel" style="max-width:420px; width:90%; padding:2rem; text-align:center; border: 1px solid rgba(220,38,38,0.4);">
+            <div style="font-size:2.5rem; margin-bottom:1rem;">⚠️</div>
+            <h3 style="color:#fca5a5; font-family:'Outfit',sans-serif; margin-bottom:0.75rem;">Delete Account?</h3>
+            <p style="color:#9ca3af; font-size:0.9rem; margin-bottom:1.5rem; line-height:1.6;">This will <strong style="color:#ef4444;">permanently delete</strong> your character, inventory, quest progress, and all game data. This action cannot be undone.</p>
+            <div style="display:flex; gap:1rem; justify-content:center;">
+                <button id="btn-confirm-delete" style="background:rgba(220,38,38,0.8); color:#fff; border:none; border-radius:8px; padding:0.65rem 1.5rem; font-weight:600; cursor:pointer; font-size:0.95rem;" onclick="confirmDeleteAccount()">Yes, Delete Everything</button>
+                <button style="background:rgba(255,255,255,0.1); color:#f3f4f6; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:0.65rem 1.5rem; font-weight:600; cursor:pointer; font-size:0.95rem;" onclick="cancelDeleteAccount()">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -1403,6 +1417,67 @@
         function handleLogoutFromSettings() {
             closeSettingsModal();
             handleLogout();
+        }
+
+        // ── DELETE ACCOUNT ──────────────────────────────────────────
+        function handleDeleteAccount() {
+            closeSettingsModal();
+            const overlay = document.getElementById("delete-confirm-overlay");
+            overlay.style.display = "flex";
+        }
+
+        function cancelDeleteAccount() {
+            document.getElementById("delete-confirm-overlay").style.display = "none";
+        }
+
+        async function confirmDeleteAccount() {
+            const btn = document.getElementById("btn-confirm-delete");
+            btn.textContent = "Deleting...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}/delete_player/${encodeURIComponent(State.player_name)}`, {
+                    method: "DELETE",
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    // Wipe local state & storage
+                    localStorage.removeItem("kf_player_name");
+                    State.player_name = "";
+                    State.character_class = "";
+                    State.gold = 100;
+                    State.hp = 100;
+                    State.max_hp = 100;
+                    State.inventory = [];
+                    State.active_quests = {};
+                    State.active_npc = null;
+                    State.is_dialogue_active = false;
+
+                    // Hide confirm overlay
+                    document.getElementById("delete-confirm-overlay").style.display = "none";
+
+                    // Show success toast
+                    showToast("Account permanently deleted. Starting fresh...", "error");
+
+                    // Return to welcome screen after brief delay
+                    setTimeout(() => {
+                        document.getElementById("game-container").style.display = "none";
+                        document.getElementById("welcome-screen").style.display = "flex";
+                        document.getElementById("welcome-screen").style.opacity = "1";
+                        document.getElementById("name-input").value = "";
+                        document.getElementById("welcome-status").textContent = "";
+                    }, 1800);
+                } else {
+                    showToast(data.message || "Failed to delete account.", "error");
+                    btn.textContent = "Yes, Delete Everything";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                showToast("Network error. Could not delete account.", "error");
+                btn.textContent = "Yes, Delete Everything";
+                btn.disabled = false;
+            }
         }
 
         function handleLogout() {
