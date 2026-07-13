@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, model_validator
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+from groq import Groq
 
 from langchain_core.prompts import PromptTemplate
 from build_vector_store import load_or_build_vector_store
@@ -83,6 +84,7 @@ class RPGResponse(BaseModel):
 # ─── Global Resources ────────────────────────────────────────────────
 vector_store = None
 gemini_client = None
+groq_client = None
 
 
 class GeminiResponseSchema(BaseModel):
@@ -93,12 +95,14 @@ class GeminiResponseSchema(BaseModel):
 # ─── Lifespan ─────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global vector_store, gemini_client
+    global vector_store, gemini_client, groq_client
 
     initialize_database()
 
-    print("\n[INFO] Initializing Gemini API Client...")
+    print("\n[INFO] Initializing LLM API Clients...")
     load_dotenv()
+    
+    # Gemini (primary)
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("[WARNING] GEMINI_API_KEY is not set in environment or .env file!")
@@ -106,6 +110,15 @@ async def lifespan(app: FastAPI):
         print("[INFO] Gemini API Key loaded successfully.")
     
     gemini_client = genai.Client(api_key=api_key)
+
+    # Groq (secondary fallback)
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if not groq_key:
+        print("[WARNING] GROQ_API_KEY is not set. Groq fallback will be disabled.")
+        groq_client = None
+    else:
+        groq_client = Groq(api_key=groq_key)
+        print("[INFO] Groq API Key loaded successfully.")
 
     vector_store = load_or_build_vector_store(None)
 
@@ -247,68 +260,65 @@ def parse_llm_response(raw_output: str) -> dict:
 
 
 def clean_player_options(options: list[str], fallback_options: list[str]) -> list[str]:
-    """Ensure we return exactly 4 unique dialogue options, with a goodbye option at the end."""
+    """Ensure we return exactly 4 unique dialogue options, with a goodbye option at the end.
+    Prioritize programmatic action options from fallback_options so they are always clickable."""
     import re
     cleaned = []
     seen = set()
-
+    
+    goodbye_words = ["farewell", "goodbye", "bye", "leave", "exit", "say goodbye", "depart", "head out"]
+    
+    # 1. First, prioritize all options from fallback_options (programmatic options)
+    # excluding generic goodbye / farewell
+    for opt in (fallback_options or []):
+        opt_str = str(opt).strip('\'" ').strip()
+        if opt_str:
+            is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
+            if not is_goodbye and opt_str not in seen:
+                cleaned.append(opt_str)
+                seen.add(opt_str)
+                
+    # 2. Next, append LLM-generated options
     for opt in (options or []):
         opt_str = str(opt).strip('\'" ').strip()
         if opt_str:
-            # Clean LLM option numbers if any leaked
             opt_str = re.sub(r'^\d+[\.\)\-\s]+', '', opt_str).strip()
-            if opt_str and opt_str not in seen:
+            is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
+            if not is_goodbye and opt_str not in seen:
                 cleaned.append(opt_str)
                 seen.add(opt_str)
-
-    # If too few valid options, use fallback
-    if len(cleaned) < 2:
-        cleaned = []
-        seen = set()
-        for opt in fallback_options:
-            opt_str = str(opt).strip()
-            if opt_str and opt_str not in seen:
-                cleaned.append(opt_str)
-                seen.add(opt_str)
-
-    # Pad if we have fewer than 4
-    if len(cleaned) < 4:
-        for opt in fallback_options:
-            opt_str = str(opt).strip()
-            if opt_str and opt_str not in seen:
-                cleaned.append(opt_str)
-                seen.add(opt_str)
-                if len(cleaned) == 4:
+                if len(cleaned) >= 3:
                     break
 
-    # General fallback padding
-    generic_fallbacks = ["Tell me more.", "What else?", "I see.", "Farewell."]
-    if len(cleaned) < 4:
+    # 3. If we still need more options to reach 3 (leaving the 4th for goodbye), pad from generic fallbacks
+    generic_fallbacks = ["Tell me more.", "What else?", "I see."]
+    if len(cleaned) < 3:
         for opt in generic_fallbacks:
             if opt not in seen:
                 cleaned.append(opt)
                 seen.add(opt)
-                if len(cleaned) == 4:
+                if len(cleaned) == 3:
                     break
-
-    cleaned = cleaned[:4]
-
-    # Ensure goodbye is the 4th option
-    goodbye_words = ["farewell", "goodbye", "bye", "leave", "exit", "say goodbye", "depart", "head out"]
-    has_goodbye = any(any(w in opt.lower() for w in goodbye_words) for opt in cleaned)
-
-    if not has_goodbye:
-        cleaned[3] = "Farewell."
-    else:
-        # Move goodbye option to index 3
-        goodbye_idx = -1
-        for idx, opt in enumerate(cleaned):
-            if any(w in opt.lower() for w in goodbye_words):
-                goodbye_idx = idx
-                break
-        if goodbye_idx != 3 and goodbye_idx != -1:
-            cleaned[goodbye_idx], cleaned[3] = cleaned[3], cleaned[goodbye_idx]
-
+                    
+    # Keep exactly the first 3 options
+    cleaned = cleaned[:3]
+    
+    # 4. Find the best goodbye option
+    goodbye_opt = "Farewell."
+    # Check if fallback_options had a custom goodbye
+    for opt in (fallback_options or []):
+        opt_str = str(opt).strip()
+        if any(w in opt_str.lower() for w in goodbye_words):
+            goodbye_opt = opt_str
+            break
+    # Or check if LLM had a custom goodbye
+    for opt in (options or []):
+        opt_str = str(opt).strip()
+        if any(w in opt_str.lower() for w in goodbye_words):
+            goodbye_opt = opt_str
+            break
+            
+    cleaned.append(goodbye_opt)
     return cleaned
 
 
@@ -599,11 +609,119 @@ Player says: {query.player_input or "(Approaches the NPC)"}"""
                 print(f"\n[DEBUG - GEMINI FALLBACK RAW OUTPUT]:\n{model_output}\n")
                 parsed = parse_llm_response(model_output)
             except Exception as fallback_e:
-                logging.error(f"Gemini API fallback also failed: {fallback_e}")
-                parsed = {
-                    "npc_response": "I'm having trouble thinking straight right now. (Failed to contact the guide realm)",
-                    "player_options": ["Let's try again.", "What happened?", "Understood.", "Farewell."]
-                }
+                logging.error(f"Gemini API fallback also failed: {fallback_e}. Attempting Groq...")
+                
+                # ── GROQ SECONDARY FALLBACK ──
+                groq_succeeded = False
+                if groq_client:
+                    groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]
+                    
+                    # Build Groq messages from the same conversation context
+                    groq_messages = []
+                    for msg in messages:
+                        role = msg["role"]
+                        if role == "system":
+                            groq_messages.append({"role": "system", "content": msg["content"]})
+                        elif role == "user":
+                            groq_messages.append({"role": "user", "content": msg["content"]})
+                        elif role in ("assistant", "model"):
+                            groq_messages.append({"role": "assistant", "content": msg["content"]})
+
+                    # Append a formatting instruction
+                    groq_messages.append({"role": "user", "content": (
+                        "IMPORTANT: Respond ONLY with valid JSON in this exact format, no markdown, no extra text:\n"
+                        '{"npc_response": "Your dialogue here", "player_options": ["Option 1", "Option 2", "Option 3", "Option 4"]}'
+                    )})
+
+                    for model in groq_models:
+                        try:
+                            logging.info(f"Attempting Groq generation with model: {model}")
+                            groq_response = groq_client.chat.completions.create(
+                                model=model,
+                                messages=groq_messages,
+                                temperature=0.85,
+                                max_tokens=400,
+                            )
+                            groq_text = groq_response.choices[0].message.content.strip()
+                            print(f"\n[DEBUG - GROQ ({model}) RAW OUTPUT]:\n{groq_text}\n")
+
+                            # Try to parse JSON from Groq response
+                            try:
+                                parsed = json.loads(groq_text)
+                                groq_succeeded = True
+                            except json.JSONDecodeError:
+                                # Try extracting JSON from markdown code blocks
+                                import re
+                                json_match = re.search(r'\{[^{}]*"npc_response"[^{}]*\}', groq_text, re.DOTALL)
+                                if json_match:
+                                    parsed = json.loads(json_match.group())
+                                    groq_succeeded = True
+                                else:
+                                    # Use raw text as response
+                                    parsed = parse_llm_response(groq_text)
+                                    if parsed.get("npc_response"):
+                                        groq_succeeded = True
+                            
+                            if groq_succeeded:
+                                logging.info(f"Groq generation succeeded with model: {model}")
+                                break
+                        except Exception as model_e:
+                            logging.warning(f"Groq model {model} failed: {model_e}. Trying next model...")
+
+                if not groq_succeeded:
+                    logging.error("All LLM APIs exhausted. Using local quest-aware dialogue fallback.")
+                    
+                    # Fetch active quest states
+                    with sqlite3.connect(DB_PATH) as conn:
+                        c = conn.cursor()
+                        c.execute("SELECT current_step, status FROM QuestState WHERE player_name = ? AND quest_id = 'main_enter_keep'", (query.player_name,))
+                        keep_row = c.fetchone()
+                    
+                    keep_step = keep_row[0] if keep_row else 1
+                    keep_status = keep_row[1] if keep_row else "not_started"
+                    
+                    fallback_msg = "Greetings, traveler."
+                    npc_name = query.npc_name
+                    
+                    # Custom NPC responses
+                    if npc_name == "Captain Aldric":
+                        if keep_step == 1:
+                            fallback_msg = "Hold, traveler! The inner keep is restricted. Prove your capability to the Royal Guard by obtaining the Frostbane Katana from Mira in the Market Square."
+                        elif keep_step == 2:
+                            fallback_msg = "A terrifying Red Dragon has been sighted in the mountains, threatening our kingdom. You must seek out Elder Thorn in the Sacred Grove. Speak to him to find a way to the dragon's lair."
+                        elif keep_step == 3:
+                            fallback_msg = "The portal is open, but the beast lives on. Face the dragon in its lair, retrieve the Dragon Diamond as proof of your deed, and bring it to me so I may open the castle gates."
+                        elif keep_step == 4 or keep_status == "completed":
+                            fallback_msg = "The dragon is dead, and the kingdom is safe. You have earned my utmost respect. The gates of the keep are open to you."
+                        else:
+                            fallback_msg = "I guard these gates by order of the King. State your business, traveler."
+                    
+                    elif npc_name == "Elder Thorn":
+                        if keep_step == 2:
+                            fallback_msg = "Captain Aldric sent you? Indeed, the Red Dragon must be stopped. I shall chant the ancient ritual and open a portal to the Dragon Lair in the grove. Enter the portal, slay the beast, and claim the Diamond."
+                        elif keep_step == 3:
+                            fallback_msg = "The portal to the Dragon Lair lies open in the grove. Go forth, warrior, and slay the beast."
+                        else:
+                            fallback_msg = "I commune with the spirits of the Sacred Grove. The trees speak of ancient legends and hidden relics."
+                    
+                    elif npc_name == "Mira":
+                        if "buy" in (query.player_input or "").lower() and "katana" in (query.player_input or "").lower():
+                            fallback_msg = "A fine choice! The Frostbane Katana is an ice-forged masterpiece. Here is your weapon, keep it safe!"
+                        elif "buy" in (query.player_input or "").lower() and "potion" in (query.player_input or "").lower():
+                            fallback_msg = "Here is a fresh Health Potion. Tastes like pine and honey, it will restore 50 of your HP!"
+                        else:
+                            fallback_msg = "Welcome to the Market Square! I sell weapons, armor, and potions. What would you like to buy or sell today?"
+                    
+                    elif npc_name == "Shade":
+                        fallback_msg = "Keep your voice down... The Shadow Guild operates in silence. If you bring me a Dragon Diamond and 3 Raw Meats, I can forge you a Diamond Greatsword, or I can buy your loot for a premium price."
+
+                    # Get correct options
+                    fallback_opts = logic_res["player_options"] if "logic_res" in locals() and logic_res else ["Hello.", "Tell me more.", "I see.", "Farewell."]
+                    
+                    parsed = {
+                        "npc_response": fallback_msg,
+                        "player_options": fallback_opts
+                    }
 
         # Update NPC emotion
         choice_idx = query.selected_option_index if query.selected_option_index is not None else -1
@@ -801,6 +919,362 @@ def get_player_inventory_api(player_name: str):
     try:
         inv = GameLogic.get_player_inventory(player_name)
         return inv
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+class HpQuery(BaseModel):
+    player_name: str
+    hp: int
+    gold_change: int = 0
+
+@app.post("/update_hp")
+def update_hp(query: HpQuery):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("UPDATE Players SET hp = ?, gold = MAX(0, gold + ?) WHERE player_name = ?",
+                      (query.hp, query.gold_change, query.player_name))
+            conn.commit()
+        return {"success": True, "message": "HP updated successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class LootQuery(BaseModel):
+    player_name: str
+    gold_reward: int
+    items_reward: list[str]
+
+@app.post("/add_loot")
+def add_loot(query: LootQuery):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            
+            # 1. Update Player's gold and set boar hunt alert flag
+            c.execute("""
+                UPDATE Players 
+                SET gold = gold + ?, boar_kill_alert = 1 
+                WHERE player_name = ?
+            """, (query.gold_reward, query.player_name))
+            
+            # 2. Add items to Inventory
+            for item in query.items_reward:
+                # Find item_id from Items table
+                c.execute("SELECT item_id FROM Items WHERE item_name = ?", (item,))
+                row = c.fetchone()
+                if not row:
+                    item_id = item.lower().replace(' ', '_')
+                    # Insert new item metadata if it doesn't exist
+                    c.execute("""
+                        INSERT INTO Items (item_id, item_name, category, base_price, description)
+                        VALUES (?, ?, 'Loot', 10, 'Item gathered from hunting or looting.')
+                    """, (item_id, item))
+                else:
+                    item_id = row[0]
+                
+                # Check if player already has this item in Inventory
+                c.execute("""
+                    SELECT quantity FROM Inventory 
+                    WHERE player_name = ? AND item_id = ?
+                """, (query.player_name, item_id))
+                inv_row = c.fetchone()
+                
+                # Default durability for newly drop-added items
+                durability = -1
+                if item_id in ("frostbane_katana", "steel_sword", "iron_shield", "thornwood_bow"):
+                    durability = 5
+                elif item_id == "hunting_knife":
+                    durability = 3
+                elif item_id == "diamond_greatsword":
+                    durability = 15
+                elif item_id == "shadowflame_dagger":
+                    durability = 10
+                
+                if inv_row:
+                    c.execute("""
+                        UPDATE Inventory SET quantity = quantity + 1 
+                        WHERE player_name = ? AND item_id = ?
+                    """, (query.player_name, item_id))
+                else:
+                    c.execute("""
+                        INSERT INTO Inventory (player_name, item_id, quantity, durability)
+                        VALUES (?, ?, 1, ?)
+                    """, (query.player_name, item_id, durability))
+            
+            conn.commit()
+            
+        return {"success": True, "message": "Loot registered successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ConsumeQuery(BaseModel):
+    player_name: str
+    item_name: str
+
+@app.post("/consume_item")
+def consume_item(query: ConsumeQuery):
+    try:
+        # Consume item and heal player
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("SELECT item_id FROM Items WHERE item_name = ?", (query.item_name,))
+            row = c.fetchone()
+            if not row:
+                return {"success": False, "message": "Item metadata not found."}
+            item_id = row[0]
+            
+            # Check quantity
+            c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = ?", (query.player_name, item_id))
+            inv_row = c.fetchone()
+            if not inv_row or inv_row[0] <= 0:
+                return {"success": False, "message": "Item not in inventory."}
+            qty = inv_row[0]
+            
+            # Heal amount limit configuration
+            import random
+            if "meat" in query.item_name.lower():
+                heal_amount = random.randint(3, 5)
+            else:
+                heal_amount = 20  # Potion or others
+            
+            # Consume 1 item
+            if qty > 1:
+                c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = ?", (query.player_name, item_id))
+            else:
+                c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = ?", (query.player_name, item_id))
+                
+            # Update player HP
+            c.execute("SELECT hp, max_hp FROM Players WHERE player_name = ?", (query.player_name,))
+            p_row = c.fetchone()
+            if p_row:
+                current_hp, max_hp = p_row[0], p_row[1]
+                new_hp = min(max_hp, current_hp + heal_amount)
+                c.execute("UPDATE Players SET hp = ? WHERE player_name = ?", (new_hp, query.player_name))
+                conn.commit()
+                return {"success": True, "message": f"Healed for {heal_amount} HP.", "hp": new_hp, "max_hp": max_hp}
+                
+            conn.commit()
+        return {"success": False, "message": "Player record not found."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class WeaponUseQuery(BaseModel):
+    player_name: str
+    weapon_name: str
+
+@app.post("/use_weapon")
+def use_weapon(query: WeaponUseQuery):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            
+            # Find item ID by name
+            c.execute("SELECT item_id FROM Items WHERE item_name = ?", (query.weapon_name,))
+            row = c.fetchone()
+            if not row:
+                return {"success": False, "message": "Weapon metadata not found."}
+            item_id = row[0]
+            
+            # Get durability
+            c.execute("SELECT durability, quantity FROM Inventory WHERE player_name = ? AND item_id = ?", (query.player_name, item_id))
+            inv_row = c.fetchone()
+            if not inv_row:
+                return {"success": False, "message": "Weapon not in inventory."}
+                
+            durability, quantity = inv_row
+            
+            if durability <= 0:
+                # Infinite/non-degradable or already broken
+                return {"success": True, "message": "Weapon durability unaffected.", "broken": False, "durability": durability}
+                
+            new_durability = durability - 1
+            if new_durability <= 0:
+                # Weapon breaks! Decrease quantity or delete
+                if quantity > 1:
+                    c.execute("UPDATE Inventory SET quantity = quantity - 1, durability = 5 WHERE player_name = ? AND item_id = ?", (query.player_name, item_id))
+                else:
+                    c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = ?", (query.player_name, item_id))
+                conn.commit()
+                return {"success": True, "message": f"Your {query.weapon_name} broke!", "broken": True, "durability": 0}
+            else:
+                c.execute("UPDATE Inventory SET durability = ? WHERE player_name = ? AND item_id = ?", (new_durability, query.player_name, item_id))
+                conn.commit()
+                return {"success": True, "message": f"Weapon used. Durability: {new_durability}", "broken": False, "durability": new_durability}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CraftQuery(BaseModel):
+    player_name: str
+
+@app.post("/craft_diamond_sword")
+def craft_diamond_sword(query: CraftQuery):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            
+            # Check for 1 Diamond and 3 Raw Meats
+            # Find Diamond
+            c.execute("SELECT quantity, item_id FROM Inventory WHERE player_name = ? AND item_id = 'diamond'", (query.player_name,))
+            d_row = c.fetchone()
+            # Find Raw Meat
+            c.execute("SELECT quantity, item_id FROM Inventory WHERE player_name = ? AND item_id = (SELECT item_id FROM Items WHERE item_name = 'Raw Meat')", (query.player_name,))
+            m_row = c.fetchone()
+            
+            has_diamond = d_row and d_row[0] >= 1
+            has_meat = m_row and m_row[0] >= 3
+            
+            if not has_diamond or not has_meat:
+                return {"success": False, "message": "Prerequisites not met. Need 1 Diamond and 3 Raw Meats."}
+                
+            # Consume Diamond
+            if d_row[0] > 1:
+                c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'diamond'", (query.player_name,))
+            else:
+                c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'diamond'", (query.player_name,))
+                
+            # Consume 3 Raw Meat
+            meat_id = m_row[1]
+            if m_row[0] > 3:
+                c.execute("UPDATE Inventory SET quantity = quantity - 3 WHERE player_name = ? AND item_id = ?", (query.player_name, meat_id))
+            else:
+                c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = ?", (query.player_name, meat_id))
+                
+            # Insert Diamond Greatsword
+            # Seed item description if it doesn't exist
+            c.execute("SELECT item_id FROM Items WHERE item_id = 'diamond_greatsword'")
+            if not c.fetchone():
+                c.execute("""
+                    INSERT INTO Items (item_id, item_name, category, description, base_price)
+                    VALUES ('diamond_greatsword', 'Diamond Greatsword', 'weapon', 'A massive sword forged from compressed dragon diamond. Deals 20 damage.', 150)
+                """)
+            
+            c.execute("""
+                INSERT INTO Inventory (player_name, item_id, quantity, durability)
+                VALUES (?, 'diamond_greatsword', 1, 15)
+                ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 1, durability = 15
+            """, (query.player_name,))
+            
+            conn.commit()
+        return {"success": True, "message": "Forged the Diamond Greatsword! (20 Damage, 15 Durability)"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CastleGateQuery(BaseModel):
+    player_name: str
+
+@app.post("/reset_castle_gate")
+def reset_castle_gate(query: CastleGateQuery):
+    """Resets the main_enter_keep quest back to step 2 (Dragon threat stage),
+    so Captain Aldric will lock the gate again until the player brings a new Diamond."""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            # Reset quest to step 2 (Dragon direction step) so Aldric demands another Diamond
+            c.execute("""
+                INSERT INTO QuestState (player_name, quest_id, status, current_step, updated_at)
+                VALUES (?, 'main_enter_keep', 'in_progress', 2, datetime('now'))
+                ON CONFLICT(player_name, quest_id) DO UPDATE SET
+                    status = 'in_progress',
+                    current_step = 2,
+                    updated_at = datetime('now')
+            """, (query.player_name,))
+            conn.commit()
+        return {"success": True, "message": "Castle gate locked. Bring another Dragon Diamond to re-enter."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class QuestProgressQuery(BaseModel):
+    player_name: str
+    quest_id: str
+    flag_key: str
+    increment: int = 1
+
+@app.post("/update_quest_progress")
+def update_quest_progress(query: QuestProgressQuery):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("SELECT status, current_step, flags FROM QuestState WHERE player_name = ? AND quest_id = ?", 
+                      (query.player_name, query.quest_id))
+            row = c.fetchone()
+            if not row:
+                return {"success": False, "message": "Quest not started."}
+            
+            status, step, flags_json = row
+            flags = json.loads(flags_json) if flags_json else {}
+            
+            # Update the flag
+            current_val = flags.get(query.flag_key, 0)
+            flags[query.flag_key] = current_val + query.increment
+            
+            c.execute("UPDATE QuestState SET flags = ? WHERE player_name = ? AND quest_id = ?", 
+                      (json.dumps(flags), query.player_name, query.quest_id))
+            conn.commit()
+            
+        return {"success": True, "flags": flags}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/craft_shadowflame_dagger")
+def craft_shadowflame_dagger(query: CraftQuery):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            
+            # Check for 1 Royal Scepter, 1 Ruby Ring, and 50 gold
+            c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = 'royal_scepter'", (query.player_name,))
+            s_row = c.fetchone()
+            c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = 'ruby_ring'", (query.player_name,))
+            r_row = c.fetchone()
+            c.execute("SELECT gold FROM Players WHERE player_name = ?", (query.player_name,))
+            g_row = c.fetchone()
+            
+            has_scepter = s_row and s_row[0] >= 1
+            has_ring = r_row and r_row[0] >= 1
+            has_gold = g_row and g_row[0] >= 50
+            
+            if not (has_scepter and has_ring and has_gold):
+                return {"success": False, "message": "Prerequisites not met. Need 1 Royal Scepter, 1 Ruby Ring, and 50 Gold."}
+                
+            # Consume Royal Scepter
+            if s_row[0] > 1:
+                c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'royal_scepter'", (query.player_name,))
+            else:
+                c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'royal_scepter'", (query.player_name,))
+                
+            # Consume Ruby Ring
+            if r_row[0] > 1:
+                c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'ruby_ring'", (query.player_name,))
+            else:
+                c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'ruby_ring'", (query.player_name,))
+                
+            # Deduct 50 gold
+            c.execute("UPDATE Players SET gold = gold - 50 WHERE player_name = ?", (query.player_name,))
+            
+            # Add Shadowflame Dagger
+            c.execute("SELECT item_id FROM Items WHERE item_id = 'shadowflame_dagger'")
+            if not c.fetchone():
+                c.execute("""
+                    INSERT INTO Items (item_id, item_name, category, description, base_price)
+                    VALUES ('shadowflame_dagger', 'Shadowflame Dagger', 'weapon', 'A dark blade infused with shadow energy. Deals 18 damage.', 200)
+                """)
+            
+            c.execute("""
+                INSERT INTO Inventory (player_name, item_id, quantity, durability)
+                VALUES (?, 'shadowflame_dagger', 1, 10)
+                ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 1, durability = 10
+            """, (query.player_name,))
+            
+            conn.commit()
+        return {"success": True, "message": "Forged the Shadowflame Dagger! (18 Damage, 10 Durability)"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

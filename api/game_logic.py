@@ -24,11 +24,11 @@ INTENT_PATTERNS = {
         "priority": 9
     },
     "accept_quest": {
-        "keywords": ["accept", "i'll do it", "count me in", "i accept", "sure i'll help", "yes i will", "i volunteer"],
+        "keywords": ["accept", "i'll do it", "count me in", "i accept", "sure i'll help", "yes i will", "i volunteer", "need a task", "prove myself", "looking for work", "guild rumors", "unconventional work"],
         "priority": 8
     },
     "complete_quest": {
-        "keywords": ["done", "finished", "completed", "here it is", "i did it", "task complete", "mission done", "turn in"],
+        "keywords": ["done", "finished", "completed", "here it is", "i did it", "task complete", "mission done", "turn in", "have the frostbane", "may i enter", "present", "deliver", "relic", "initiation", "share the secret", "portal", "open the portal", "dragon", "aldric suggested", "aldric sent", "meet you", "slain the dragon", "killed the dragon", "diamond"],
         "priority": 8
     },
     "ask_quest": {
@@ -70,7 +70,15 @@ ITEM_NAMES = [
     "shadow cloak", "cloak",
     "thornwood bow", "bow",
     "ancient map", "map",
-    "dragon scale", "scale"
+    "dragon scale", "scale",
+    "dragon diamond", "diamond",
+    "golden chalice", "chalice",
+    "crown jewels", "jewels", "crown",
+    "royal scepter", "scepter",
+    "ruby ring", "ring",
+    "golden candelabra", "candelabra",
+    "elven goblet", "goblet",
+    "diamond greatsword", "greatsword"
 ]
 
 
@@ -172,11 +180,19 @@ class GameLogic:
                 }
             
             # SUCCESS — Execute purchase
+            durability = -1
+            if item_id in ("frostbane_katana", "steel_sword", "iron_shield", "thornwood_bow"):
+                durability = 5
+            elif item_id == "hunting_knife":
+                durability = 3
+
             c.execute("UPDATE Players SET gold = gold - ? WHERE player_name = ?", (price, player_name))
             c.execute("""
-                INSERT INTO Inventory (player_name, item_id, quantity) VALUES (?, ?, 1)
-                ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 1
-            """, (player_name, item_id))
+                INSERT INTO Inventory (player_name, item_id, quantity, durability) VALUES (?, ?, 1, ?)
+                ON CONFLICT(player_name, item_id) DO UPDATE SET 
+                    quantity = quantity + 1,
+                    durability = MAX(durability, excluded.durability)
+            """, (player_name, item_id, durability))
             c.execute("UPDATE ShopItems SET stock = stock - 1 WHERE npc_name = ? AND item_id = ?", (npc_name, item_id))
             conn.commit()
             
@@ -232,6 +248,9 @@ class GameLogic:
                 
             item_id, item_name, base_price, quantity, category = row
             buyback_price = max(1, int(base_price * 0.5))
+            # Shade pays a premium (75% value instead of 50% buyback) for dragon diamonds and castle treasures!
+            if npc_name == "Shade" and (item_id == "diamond" or category == "Loot"):
+                buyback_price = int(base_price * 0.75)
             
             # Deduct 1 item from player inventory
             if quantity > 1:
@@ -283,11 +302,11 @@ class GameLogic:
             quest_id = "main_enter_keep"
             quest_name = "Gain Entry to the Inner Keep"
         elif npc_name == "Elder Thorn":
-            quest_id = "side_elder_relic"
-            quest_name = "The Ancient Relic"
+            quest_id = "side_boar_hunter"
+            quest_name = "The Boar Hunt"
         elif npc_name == "Shade":
-            quest_id = "side_shadow_guild"
-            quest_name = "Shadow Guild Initiation"
+            quest_id = "side_castle_scavenger"
+            quest_name = "Castle Scavenger"
             
         if not quest_id:
             return {
@@ -319,13 +338,23 @@ class GameLogic:
                 }
                 
         # Accept quest
-        QuestEngine.update_quest(player_name, quest_id, "in_progress", 1, {"started": True})
+        flags = {"started": True}
+        if quest_id == "side_boar_hunter":
+            import random
+            required_kills = random.choice([5, 10, 15])
+            flags = {"kills": 0, "required_kills": required_kills}
+        elif quest_id == "side_castle_scavenger":
+            import random
+            required_loot = random.choice([1, 2, 3])
+            flags = {"looted": 0, "required_loot": required_loot}
+            
+        QuestEngine.update_quest(player_name, quest_id, "in_progress", 1, flags)
         
         return {
             "success": True,
             "reason": "quest_accepted",
             "message": f"Player accepted quest '{quest_name}' from {npc_name}.",
-            "quest_updates": {"quest_id": quest_id, "status": "in_progress", "step": 1}
+            "quest_updates": {"quest_id": quest_id, "status": "in_progress", "step": 1, "flags": flags}
         }
 
     @staticmethod
@@ -341,11 +370,16 @@ class GameLogic:
             quest_id = "main_enter_keep"
             quest_name = "Gain Entry to the Inner Keep"
         elif npc_name == "Elder Thorn":
-            quest_id = "side_elder_relic"
-            quest_name = "The Ancient Relic"
+            main_state = QuestEngine.get_quest_state(player_name, "main_enter_keep")
+            if main_state and main_state["status"] == "in_progress" and main_state["current_step"] == 2:
+                quest_id = "main_enter_keep"
+                quest_name = "Gain Entry to the Inner Keep"
+            else:
+                quest_id = "side_boar_hunter"
+                quest_name = "The Boar Hunt"
         elif npc_name == "Shade":
-            quest_id = "side_shadow_guild"
-            quest_name = "Shadow Guild Initiation"
+            quest_id = "side_castle_scavenger"
+            quest_name = "Castle Scavenger"
             
         if not quest_id:
             return {
@@ -387,86 +421,154 @@ class GameLogic:
                 
         elif quest_id == "main_enter_keep":
             inv = GameLogic.get_player_inventory(player_name)
-            has_katana = False
-            for item in inv["items"]:
-                if "katana" in item["name"].lower() or "frostbane" in item["name"].lower():
-                    has_katana = True
-                    break
+            step = state["current_step"] if state else 1
             
-            if has_katana:
+            if step == 1:
+                has_katana = any("katana" in i["name"].lower() or "frostbane" in i["name"].lower() for i in inv["items"])
+                if not has_katana:
+                    return {
+                        "success": False,
+                        "reason": "requirements_not_met",
+                        "message": "You need to purchase the Frostbane Katana from Mira first to prove your capability to Captain Aldric.",
+                        "quest_updates": {}
+                    }
+                
+                # Advance quest step to 2 (Dragon threat revealed)
+                QuestEngine.update_quest(player_name, quest_id, "in_progress", 2, {"suggest_thorn": True})
+                return {
+                    "success": True,
+                    "reason": "dragon_threat_revealed",
+                    "message": "Captain Aldric tells you about a dangerous Red Dragon creating disturbances in the kingdom. He suggests you meet Elder Thorn in the Sacred Grove to locate its lair. Slay the dragon and return with its Diamond as proof of entry!",
+                    "quest_updates": {"quest_id": quest_id, "status": "in_progress", "step": 2}
+                }
+                
+            elif step == 2:
+                # Talking to Elder Thorn opens the portal to the Dragon Lair!
+                if npc_name != "Elder Thorn":
+                    return {
+                        "success": False,
+                        "reason": "requirements_not_met",
+                        "message": "You must speak with Elder Thorn in the Sacred Grove to locate the dragon's lair.",
+                        "quest_updates": {}
+                    }
+                
+                # Elder Thorn opens the portal to the Dragon Lair and advances to step 3
+                QuestEngine.update_quest(player_name, quest_id, "in_progress", 3, {"portal_opened": True})
+                return {
+                    "success": True,
+                    "reason": "portal_opened",
+                    "message": "Elder Thorn chants a ritual spell and summons a glowing portal to the Dragon's Lair. Step inside to face the Red Dragon!",
+                    "quest_updates": {"quest_id": quest_id, "status": "in_progress", "step": 3}
+                }
+                
+            elif step == 3:
+                # Slay Dragon (checking for Diamond proof)
+                if npc_name != "Captain Aldric":
+                    return {
+                        "success": False,
+                        "reason": "requirements_not_met",
+                        "message": "You must present the Dragon's Diamond to Captain Aldric at the Castle Gate to gain entry.",
+                        "quest_updates": {}
+                    }
+                
+                has_diamond = any("diamond" in i["name"].lower() for i in inv["items"])
+                if not has_diamond:
+                    return {
+                        "success": False,
+                        "reason": "requirements_not_met",
+                        "message": "You must present the Dragon's Diamond to Captain Aldric as proof of the dragon's defeat.",
+                        "quest_updates": {}
+                    }
+                
+                # Remove 1 Diamond and award 50 gold
                 with sqlite3.connect(DB_PATH) as conn:
                     c = conn.cursor()
-                    c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'frostbane_katana'", (player_name,))
+                    c.execute("""
+                        SELECT quantity FROM Inventory 
+                        WHERE player_name = ? AND item_id = 'diamond'
+                    """, (player_name,))
+                    d_row = c.fetchone()
+                    if d_row:
+                        if d_row[0] > 1:
+                            c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'diamond'", (player_name,))
+                        else:
+                            c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'diamond'", (player_name,))
+                    
                     c.execute("UPDATE Players SET gold = gold + 50 WHERE player_name = ?", (player_name,))
                     conn.commit()
                     
-                QuestEngine.update_quest(player_name, quest_id, "completed", 2, {"gate_opened": True})
+                QuestEngine.update_quest(player_name, quest_id, "completed", 4, {"gate_opened": True})
                 return {
                     "success": True,
                     "reason": "quest_completed",
                     "message": f"Quest '{quest_name}' completed. Captain Aldric opened the gates and rewarded you with 50 Gold!",
-                    "quest_updates": {"quest_id": quest_id, "status": "completed", "step": 2},
-                    "inventory_changes": {"gold": 50, "items_added": [], "items_removed": ["Frostbane Katana"]},
+                    "quest_updates": {"quest_id": quest_id, "status": "completed", "step": 4},
+                    "inventory_changes": {"gold": 50, "items_added": [], "items_removed": ["Diamond"]},
                     "gold_change": 50
                 }
             else:
                 return {
-                    "success": False,
-                    "reason": "requirements_not_met",
-                    "message": "You need to show the Frostbane Katana to Captain Aldric to gain entry.",
+                    "success": True,
+                    "reason": "gate_already_opened",
+                    "message": "The gates are open to you, traveler. Go inside.",
                     "quest_updates": {}
                 }
                 
-        elif quest_id == "side_elder_relic":
-            rel = GameLogic.get_relationship(player_name, npc_name)
-            if rel["trust"] >= 70:
-                with sqlite3.connect(DB_PATH) as conn:
-                    c = conn.cursor()
-                    c.execute("""
-                        INSERT OR IGNORE INTO Inventory (player_name, item_id, quantity)
-                        VALUES (?, 'dragon_scale', 1)
-                        ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 1
-                    """, (player_name,))
-                    conn.commit()
-                QuestEngine.update_quest(player_name, quest_id, "completed", 2, {"relic_revealed": True})
-                return {
-                    "success": True,
-                    "reason": "quest_completed",
-                    "message": f"Quest '{quest_name}' completed. Elder Thorn shared the relic location and rewarded you with a Dragon Scale!",
-                    "quest_updates": {"quest_id": quest_id, "status": "completed", "step": 2},
-                    "inventory_changes": {"gold": 0, "items_added": ["Dragon Scale"], "items_removed": []}
-                }
-            else:
+        elif quest_id == "side_boar_hunter":
+            kills = state["flags"].get("kills", 0) if state else 0
+            req = state["flags"].get("required_kills", 5) if state else 5
+            if kills < req:
                 return {
                     "success": False,
                     "reason": "requirements_not_met",
-                    "message": f"Elder Thorn does not trust you enough yet (Trust: {rel['trust']}/70 required).",
+                    "message": f"You must hunt down {req} Wild Boars. You have only hunted {kills}.",
                     "quest_updates": {}
                 }
+            
+            QuestEngine.update_quest(player_name, quest_id, "not_started", 0, {})
+            with sqlite3.connect(DB_PATH) as conn:
+                c = conn.cursor()
+                c.execute("UPDATE Players SET gold = gold + 5 WHERE player_name = ?", (player_name,))
+                c.execute("""
+                    INSERT INTO Inventory (player_name, item_id, quantity, durability) VALUES (?, 'raw_meat', 3, -1)
+                    ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 3
+                """, (player_name,))
+                conn.commit()
+            
+            return {
+                "success": True,
+                "reason": "quest_completed",
+                "message": f"Hunt completed! Elder Thorn rewards you with 5 Gold and 3 Raw Meats.",
+                "quest_updates": {"quest_id": quest_id, "status": "not_started", "step": 0},
+                "inventory_changes": {"gold": 5, "items_added": ["Raw Meat", "Raw Meat", "Raw Meat"], "items_removed": []},
+                "gold_change": 5
+            }
                 
-        elif quest_id == "side_shadow_guild":
-            rel = GameLogic.get_relationship(player_name, npc_name)
-            if rel["trust"] >= 60:
-                with sqlite3.connect(DB_PATH) as conn:
-                    c = conn.cursor()
-                    c.execute("UPDATE Players SET gold = gold + 40 WHERE player_name = ?", (player_name,))
-                    conn.commit()
-                QuestEngine.update_quest(player_name, quest_id, "completed", 2, {"joined_guild": True})
-                return {
-                    "success": True,
-                    "reason": "quest_completed",
-                    "message": f"Quest '{quest_name}' completed. Shade welcomes you to the guild and hands you 40 Gold!",
-                    "quest_updates": {"quest_id": quest_id, "status": "completed", "step": 2},
-                    "inventory_changes": {"gold": 40, "items_added": [], "items_removed": []},
-                    "gold_change": 40
-                }
-            else:
+        elif quest_id == "side_castle_scavenger":
+            looted = state["flags"].get("looted", 0) if state else 0
+            req = state["flags"].get("required_loot", 1) if state else 1
+            if looted < req:
                 return {
                     "success": False,
                     "reason": "requirements_not_met",
-                    "message": f"Shade does not trust your loyalty yet (Trust: {rel['trust']}/60 required).",
+                    "message": f"You must loot {req} castle treasure(s). You have only looted {looted}.",
                     "quest_updates": {}
                 }
+            
+            QuestEngine.update_quest(player_name, quest_id, "not_started", 0, {})
+            with sqlite3.connect(DB_PATH) as conn:
+                c = conn.cursor()
+                c.execute("UPDATE Players SET gold = gold + 15 WHERE player_name = ?", (player_name,))
+                conn.commit()
+                
+            return {
+                "success": True,
+                "reason": "quest_completed",
+                "message": f"Job completed! Shade hands you 15 Gold.",
+                "quest_updates": {"quest_id": quest_id, "status": "not_started", "step": 0},
+                "inventory_changes": {"gold": 15, "items_added": [], "items_removed": []},
+                "gold_change": 15
+            }
                 
         return {
             "success": False,
@@ -493,23 +595,33 @@ class GameLogic:
 
     @staticmethod
     def get_player_inventory(player_name: str) -> dict:
-        """Get player's full inventory."""
+        """Get player's full inventory, including HP and item durabilities."""
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
-            c.execute("SELECT gold, character_class FROM Players WHERE player_name = ?", (player_name,))
+            c.execute("SELECT gold, character_class, hp, max_hp FROM Players WHERE player_name = ?", (player_name,))
             player = c.fetchone()
             gold = player[0] if player else 0
             char_class = player[1] if player else "warrior"
+            hp = player[2] if (player and len(player) > 2 and player[2] is not None) else 100
+            max_hp = player[3] if (player and len(player) > 3 and player[3] is not None) else 100
             
             c.execute("""
-                SELECT i.item_name, i.category, inv.quantity
+                SELECT i.item_name, i.category, inv.quantity, inv.durability
                 FROM Inventory inv
                 JOIN Items i ON inv.item_id = i.item_id
                 WHERE inv.player_name = ?
             """, (player_name,))
-            items = [{"name": r[0], "category": r[1], "quantity": r[2]} for r in c.fetchall()]
+            items = [
+                {
+                    "name": r[0], 
+                    "category": r[1], 
+                    "quantity": r[2],
+                    "durability": r[3] if r[3] is not None else -1
+                } 
+                for r in c.fetchall()
+            ]
         
-        return {"gold": gold, "character_class": char_class, "items": items}
+        return {"gold": gold, "character_class": char_class, "hp": hp, "max_hp": max_hp, "items": items}
 
     # ── Relationship ───────────────────────────────────────────────────
     @staticmethod
@@ -614,16 +726,33 @@ class GameLogic:
             options = [
                 "What weapons do you have for sale?",
                 "How much gold do I need for the Frostbane Katana?",
-                "Do you have any potions?",
             ]
+            if inv["gold"] >= 10:
+                options.append("I'd like to buy a Health Potion (10 Gold).")
             if inv["gold"] >= 50:
                 options.insert(1, "I'd like to buy the Frostbane Katana.")
             if any(item["name"] for item in inv["items"]):
-                options.insert(-1, "I'd like to sell something.")
+                options.append("I'd like to sell something.")
                 
         elif npc_action == "open_gate":
+            has_diamond = any("diamond" in i["name"].lower() for i in inv["items"])
             has_katana = any("katana" in i["name"].lower() or "frostbane" in i["name"].lower() for i in inv["items"])
-            if has_katana:
+            q_state = QuestEngine.get_quest_state(player_name, "main_enter_keep")
+            q_step = q_state["current_step"] if q_state else 0
+            
+            if has_diamond and q_step == 3:
+                options = [
+                    "I have slain the Red Dragon! Here is the Diamond.",
+                    "What lies beyond the gate?",
+                    "Tell me about the Royal Guard.",
+                ]
+            elif q_step == 2:
+                options = [
+                    "I will seek out Elder Thorn in the Sacred Grove.",
+                    "What lies beyond the gate?",
+                    "Tell me about the Royal Guard.",
+                ]
+            elif has_katana and q_step == 1:
                 options = [
                     "I have the Frostbane Katana. May I enter?",
                     "What lies beyond the gate?",
@@ -637,32 +766,76 @@ class GameLogic:
                 ]
                 
         elif npc_action == "reveal_secret":
-            if rel["trust"] >= 70:
+            q_state = QuestEngine.get_quest_state(player_name, "main_enter_keep")
+            q_step = q_state["current_step"] if q_state else 0
+            
+            boar_state = QuestEngine.get_quest_state(player_name, "side_boar_hunter")
+            boar_status = boar_state["status"] if boar_state else "not_started"
+            
+            if q_step == 2:
                 options = [
-                    "Will you share the secret of the ancient relic?",
-                    "What wisdom do the forest spirits offer?",
-                    "Tell me about the Thornwall Mountains.",
-                ]
-            else:
-                options = [
+                    "Captain Aldric suggested I meet you about the dragon.",
                     "I seek your wisdom, Elder.",
                     "What can you teach me about this land?",
-                    "How can I earn the forest's trust?",
-                ]
-                
-        elif npc_action == "offer_mission":
-            if rel["trust"] >= 40:
-                options = [
-                    "Do you have a job for someone with... discretion?",
-                    "What's the Shadow Guild really about?",
-                    "I can keep a secret. Try me.",
                 ]
             else:
-                options = [
-                    "I'm looking for work. Unconventional work.",
+                options = ["I seek your wisdom, Elder.", "What can you teach me about this land?"]
+                if boar_status == "not_started":
+                    options.append("Do you have any tasks for me, Elder?")
+                elif boar_status == "in_progress":
+                    kills = boar_state["flags"].get("kills", 0)
+                    req = boar_state["flags"].get("required_kills", 5)
+                    if kills >= req:
+                        options.append(f"I have hunted the boars! (Kills: {kills}/{req})")
+                    else:
+                        options.append(f"I am still working on the boar hunt. (Kills: {kills}/{req})")
+                options.append("How can I earn the forest's trust?")
+                
+        elif npc_action == "offer_mission":
+            has_diamond = any("diamond" in i["name"].lower() for i in inv["items"])
+            has_loot = any(i["category"].lower() == "loot" for i in inv["items"])
+            has_scepter = any("scepter" in i["name"].lower() for i in inv["items"])
+            has_ring = any("ring" in i["name"].lower() for i in inv["items"])
+            
+            options = []
+            if has_diamond:
+                meat_count = 0
+                for i in inv["items"]:
+                    if "meat" in i["name"].lower():
+                        meat_count = i["quantity"]
+                        break
+                if meat_count >= 3:
+                    options.append("I have a Dragon Diamond and 3 Raw Meats. Forge me the Diamond Greatsword!")
+                options.append("I want to sell this Dragon Diamond to you for a premium.")
+                
+            if has_scepter and has_ring and inv["gold"] >= 50:
+                options.append("I have a Royal Scepter, a Ruby Ring and 50 Gold. Forge me the Shadowflame Dagger!")
+                
+            if has_loot:
+                options.append("I have some castle loot to sell you.")
+                
+            scav_state = QuestEngine.get_quest_state(player_name, "side_castle_scavenger")
+            scav_status = scav_state["status"] if scav_state else "not_started"
+            if scav_status == "not_started":
+                options.append("Do you have a job for me, Shade?")
+            elif scav_status == "in_progress":
+                looted = scav_state["flags"].get("looted", 0)
+                req = scav_state["flags"].get("required_loot", 1)
+                if looted >= req:
+                    options.append(f"I have scavenged the castle treasures! (Looted: {looted}/{req})")
+                else:
+                    options.append(f"I am still searching the castle keep. (Looted: {looted}/{req})")
+                    
+            if rel["trust"] >= 40:
+                options.extend([
+                    "What's the Shadow Guild really about?",
+                    "I can keep a secret. Try me.",
+                ])
+            else:
+                options.extend([
                     "I've heard rumors about the Shadow Guild.",
                     "Can I buy you a drink?",
-                ]
+                ])
         else:
             options = [
                 "Tell me about yourself.",
@@ -685,6 +858,16 @@ class GameLogic:
         rel = GameLogic.get_relationship(player_name, npc_name)
         memories = GameLogic.get_memories(player_name, npc_name)
         
+        # Fetch active quest states
+        import json
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("""
+                SELECT quest_id, status, current_step, flags FROM QuestState
+                WHERE player_name = ?
+            """, (player_name,))
+            quests = c.fetchall()
+            
         lines = []
         lines.append(f"[GAME STATE - The LLM must describe ONLY what is stated here]")
         lines.append(f"Player '{player_name}' (Class: {inv['character_class']})")
@@ -698,6 +881,38 @@ class GameLogic:
         
         lines.append(f"Relationship — Trust: {rel['trust']}, Friendship: {rel['friendship']}, "
                      f"Respect: {rel['respect']}, Suspicion: {rel['suspicion']}")
+        
+        if quests:
+            quest_strs = []
+            for q_id, q_status, q_step, q_flags_json in quests:
+                q_flags = json.loads(q_flags_json) if q_flags_json else {}
+                desc = f"{q_id} (Status: {q_status}, Step: {q_step})"
+                if q_id == "main_enter_keep":
+                    if q_step == 1:
+                        desc += " - Step 1: Prove capability to Captain Aldric by showing/having the Frostbane Katana."
+                    elif q_step == 2:
+                        desc += " - Step 2: Captain Aldric tells the player about a dangerous Red Dragon creating disturbances in the kingdom and suggests they meet Elder Thorn in the Sacred Grove to locate its lair. The player must speak to Elder Thorn."
+                    elif q_step == 3:
+                        desc += " - Step 3: Elder Thorn has opened the portal. The player must enter the portal to the Dragon Lair, slay the Red Dragon, retrieve the Diamond, and present the Diamond to Captain Aldric."
+                    elif q_step == 4 or q_status == "completed":
+                        desc += " - Step 4: The player has completed the quest and entered the keep. Captain Aldric has opened the castle gate."
+                elif q_id == "main_frostbane":
+                    if q_status == "completed":
+                        desc += " - Completed: The player has obtained the Frostbane Katana from Mira."
+                    else:
+                        desc += " - Step 1: The player must buy the Frostbane Katana from Mira in the market for 50 gold."
+                elif q_id == "side_boar_hunter":
+                    kills = q_flags.get("kills", 0)
+                    req = q_flags.get("required_kills", 5)
+                    desc += f" - The Boar Hunt: Hunt wild boars. Progress: {kills}/{req} hunted."
+                elif q_id == "side_castle_scavenger":
+                    looted = q_flags.get("looted", 0)
+                    req = q_flags.get("required_loot", 1)
+                    desc += f" - Castle Scavenger: Retrieve keepsakes. Progress: {looted}/{req} looted."
+                quest_strs.append(desc)
+            lines.append("Active Quests:\n" + "\n".join(f"  - {qs}" for qs in quest_strs))
+        else:
+            lines.append("Active Quests: None")
         
         visit_count = GameLogic.get_visit_count(player_name, npc_name)
         if visit_count > 1:
@@ -737,8 +952,121 @@ class GameLogic:
         relationship_updates = {}
         memory_updates = []
         
+        # Custom intercept for Shade crafting
+        if npc_name == "Shade" and "forge" in player_input.lower() and "greatsword" in player_input.lower():
+            with sqlite3.connect(DB_PATH) as conn:
+                c = conn.cursor()
+                c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = 'diamond'", (player_name,))
+                d_row = c.fetchone()
+                c.execute("SELECT quantity, item_id FROM Inventory WHERE player_name = ? AND item_id = (SELECT item_id FROM Items WHERE item_name = 'Raw Meat')", (player_name,))
+                m_row = c.fetchone()
+                
+                has_diamond = d_row and d_row[0] >= 1
+                has_meat = m_row and m_row[0] >= 3
+                
+                if has_diamond and has_meat:
+                    if d_row[0] > 1:
+                        c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'diamond'", (player_name,))
+                    else:
+                        c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'diamond'", (player_name,))
+                    
+                    meat_id = m_row[1]
+                    if m_row[0] > 3:
+                        c.execute("UPDATE Inventory SET quantity = quantity - 3 WHERE player_name = ? AND item_id = ?", (player_name, meat_id))
+                    else:
+                        c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = ?", (player_name, meat_id))
+                        
+                    c.execute("SELECT item_id FROM Items WHERE item_id = 'diamond_greatsword'")
+                    if not c.fetchone():
+                        c.execute("""
+                            INSERT INTO Items (item_id, item_name, category, description, base_price)
+                            VALUES ('diamond_greatsword', 'Diamond Greatsword', 'weapon', 'A massive sword forged from compressed dragon diamond.', 150)
+                        """)
+                    c.execute("""
+                        INSERT INTO Inventory (player_name, item_id, quantity, durability)
+                        VALUES (?, 'diamond_greatsword', 1, 15)
+                        ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 1, durability = 15
+                    """, (player_name,))
+                    conn.commit()
+                    
+                    action_result = {
+                        "success": True,
+                        "reason": "craft_complete",
+                        "message": "Forged the Diamond Greatsword! (20 Damage, 15 Durability)"
+                    }
+                    inventory_changes = {
+                        "gold": 0,
+                        "items_added": ["Diamond Greatsword"],
+                        "items_removed": ["Diamond", "Raw Meat", "Raw Meat", "Raw Meat"]
+                    }
+                else:
+                    action_result = {
+                        "success": False,
+                        "reason": "craft_failed",
+                        "message": "Prerequisites not met. Need 1 Diamond and 3 Raw Meats."
+                    }
+            intent = {"intent": "craft_item"}
+            
+        elif npc_name == "Shade" and "forge" in player_input.lower() and "dagger" in player_input.lower():
+            with sqlite3.connect(DB_PATH) as conn:
+                c = conn.cursor()
+                c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = 'royal_scepter'", (player_name,))
+                s_row = c.fetchone()
+                c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = 'ruby_ring'", (player_name,))
+                r_row = c.fetchone()
+                c.execute("SELECT gold FROM Players WHERE player_name = ?", (player_name,))
+                g_row = c.fetchone()
+                
+                has_scepter = s_row and s_row[0] >= 1
+                has_ring = r_row and r_row[0] >= 1
+                has_gold = g_row and g_row[0] >= 50
+                
+                if has_scepter and has_ring and has_gold:
+                    if s_row[0] > 1:
+                        c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'royal_scepter'", (player_name,))
+                    else:
+                        c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'royal_scepter'", (player_name,))
+                    
+                    if r_row[0] > 1:
+                        c.execute("UPDATE Inventory SET quantity = quantity - 1 WHERE player_name = ? AND item_id = 'ruby_ring'", (player_name,))
+                    else:
+                        c.execute("DELETE FROM Inventory WHERE player_name = ? AND item_id = 'ruby_ring'", (player_name,))
+                        
+                    c.execute("UPDATE Players SET gold = gold - 50 WHERE player_name = ?", (player_name,))
+                    
+                    c.execute("SELECT item_id FROM Items WHERE item_id = 'shadowflame_dagger'")
+                    if not c.fetchone():
+                        c.execute("""
+                            INSERT INTO Items (item_id, item_name, category, description, base_price)
+                            VALUES ('shadowflame_dagger', 'Shadowflame Dagger', 'weapon', 'A dark blade infused with shadow energy.', 200)
+                        """)
+                    c.execute("""
+                        INSERT INTO Inventory (player_name, item_id, quantity, durability)
+                        VALUES (?, 'shadowflame_dagger', 1, 10)
+                        ON CONFLICT(player_name, item_id) DO UPDATE SET quantity = quantity + 1, durability = 10
+                    """, (player_name,))
+                    conn.commit()
+                    
+                    action_result = {
+                        "success": True,
+                        "reason": "craft_complete",
+                        "message": "Forged the Shadowflame Dagger! (18 Damage, 10 Durability)"
+                    }
+                    inventory_changes = {
+                        "gold": -50,
+                        "items_added": ["Shadowflame Dagger"],
+                        "items_removed": ["Royal Scepter", "Ruby Ring"]
+                    }
+                else:
+                    action_result = {
+                        "success": False,
+                        "reason": "craft_failed",
+                        "message": "Prerequisites not met. Need 1 Royal Scepter, 1 Ruby Ring, and 50 Gold."
+                    }
+            intent = {"intent": "craft_item"}
+            
         # ── Handle each intent ──────────────────────────────────────
-        if intent["intent"] == "buy_item" and intent["item"]:
+        elif intent["intent"] == "buy_item" and intent["item"]:
             action_result = GameLogic.validate_purchase(player_name, intent["item"], npc_name)
             inventory_changes = action_result.get("inventory_changes", {})
             quest_updates = action_result.get("quest_updates", {})

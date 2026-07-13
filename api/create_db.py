@@ -17,12 +17,9 @@ def initialize_database():
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         
-        # Check if already initialized with full schema
+        # Ensure database tables are verified
         try:
             c.execute("SELECT COUNT(*) FROM Items")
-            count = c.fetchone()[0]
-            if count > 0:
-                return  # Already initialized
         except Exception:
             pass  # Tables don't exist yet
 
@@ -72,7 +69,6 @@ def initialize_database():
             PRIMARY KEY (player_name, quest_id),
             FOREIGN KEY(player_name) REFERENCES Players(player_name)
         )""")
-
         c.execute("""
         CREATE TABLE IF NOT EXISTS Items (
             item_id TEXT PRIMARY KEY,
@@ -162,9 +158,18 @@ def initialize_database():
             ("thornwood_bow", "Thornwood Bow", "weapon", "Carved from ancient thornwood. Silent and deadly.", 75),
             ("ancient_map", "Ancient Map", "quest_item", "A faded map showing a path into the Thornwall Mountains.", 25),
             ("dragon_scale", "Dragon Scale", "quest_item", "An iridescent scale from a dragon. Extremely rare.", 200),
+            ("diamond", "Diamond", "Loot", "A massive iridescent diamond harvested from the Red Dragon. Highly valuable.", 100),
+            ("golden_chalice", "Golden Chalice", "Loot", "A royal chalice looted from the castle throne room.", 60),
+            ("crown_jewels", "Crown Jewels", "Loot", "Precious jewels looted from the castle treasury.", 100),
+            ("royal_scepter", "Royal Scepter", "Loot", "An ornate scepter looted from the castle keep.", 80),
+            ("ruby_ring", "Ruby Ring", "Loot", "A ring set with a beautiful ruby.", 50),
+            ("golden_candelabra", "Golden Candelabra", "Loot", "A heavy candelabra made of solid gold.", 40),
+            ("elven_goblet", "Elven Goblet", "Loot", "A finely crafted elven drinking goblet.", 30),
+            ("diamond_greatsword", "Diamond Greatsword", "weapon", "A massive sword forged from compressed dragon diamond. Deals 20 damage.", 150),
+            ("shadowflame_dagger", "Shadowflame Dagger", "weapon", "A dark blade infused with shadow energy. Deals 18 damage.", 200)
         ]
         for item in items:
-            c.execute("INSERT OR IGNORE INTO Items VALUES (?,?,?,?,?)", item)
+            c.execute("INSERT OR REPLACE INTO Items (item_id, item_name, category, description, base_price) VALUES (?,?,?,?,?)", item)
 
         # ═══════════════════════════════════════════════════════════════
         # SEED: Shop Items (what each NPC sells)

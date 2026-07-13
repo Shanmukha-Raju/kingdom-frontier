@@ -5,11 +5,13 @@ The Castle Gate is the only passage into the inner keep, guarded day and night b
 The Sacred Grove lies at the forest's edge, where Elder Thorn communes with ancient spirits and nature's wisdom.
 The Dockside Tavern is a shadowy establishment where the Shadow Guild conducts covert dealings through their agent known only as Shade.
 The player is a newly arrived adventurer seeking to prove their worth and gain entry to the King's court.
-To enter the inner keep, an adventurer must earn the trust of Captain Aldric by completing a worthy deed.
-Mira the Merchant sells a legendary katana called Frostbane for 8 gold, which is said to impress even the Royal Guard.
-Gold coins can be found scattered in hidden places around Ironhaven — behind crates in the market, near the old well, and in the forest clearing.
-The Shadow Guild operates in secret, offering lucrative but morally questionable missions to those who prove their discretion.
-Elder Thorn knows the location of an ancient relic hidden deep in the Thornwall Mountains, but only shares this knowledge with those he trusts.
-The Royal Guard protects the kingdom from threats beyond the Thornwall Mountains, where dark creatures stir.
-The Forest Wardens are an ancient order dedicated to preserving the balance between civilization and the wild.
-There are rumors of a dragon awakening in the Thornwall Mountains, and the King seeks brave adventurers to investigate.
+To enter the inner keep, Captain Aldric requires the player to prove themselves by slaying the terrifying Red Dragon in the mountains.
+Elder Thorn in the Sacred Grove can open a magical portal to the Dragon's Lair, but only after Captain Aldric suggests that the player meet him.
+The Red Dragon shoots deadly fireballs and can only be slain using weapons like the Frostbane Katana or the Diamond Greatsword.
+Slaying the dragon yields a precious Dragon Diamond as proof of the deed.
+Captain Aldric will consume the Dragon Diamond as proof to grant entry to the Castle Interior.
+Inside the Castle Interior, the player can loot royal throne treasures like Golden Chalices, Crown Jewels, and Royal Scepters.
+Shade at the Dockside Tavern will buy the Dragon Diamond and Castle Loot for a premium price (75% of base price instead of 50%).
+Shade can forge the Diamond Greatsword (deals 20 damage, 15 durability) in exchange for 1 Dragon Diamond and 3 Raw Meats.
+Every time the player exits the castle, Captain Aldric locks the gate and demands a new Dragon Diamond for re-entry.
+Health Potions bought from Mira heal 50 HP, and Raw Meat obtained from hunting wild boars heals 3 to 5 HP.

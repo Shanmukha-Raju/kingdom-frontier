@@ -78,6 +78,12 @@ class QuestEngine:
                     flags = excluded.flags,
                     updated_at = excluded.updated_at
             """, (player_name, quest_id, new_status, step, flags_json, now))
+            
+            try:
+                cursor.execute("UPDATE Players SET quest_complete_alert = 1 WHERE player_name = ?", (player_name,))
+            except Exception:
+                pass
+                
             conn.commit()
 
         return {
@@ -144,7 +150,9 @@ class QuestEngine:
                 "main_frostbane": "Find the Frostbane Katana",
                 "main_enter_keep": "Gain Entry to the Inner Keep",
                 "side_shadow_guild": "Shadow Guild Initiation",
-                "side_elder_relic": "The Ancient Relic"
+                "side_elder_relic": "The Ancient Relic",
+                "side_boar_hunter": "The Boar Hunt",
+                "side_castle_scavenger": "Castle Scavenger"
             }
             name = quest_names.get(q["quest_id"], q["quest_id"])
             lines.append(f"- Quest '{name}': {q['status']} (step {q['current_step']})")

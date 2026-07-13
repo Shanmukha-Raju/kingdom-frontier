@@ -1,0 +1,2432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kingdom Frontier — Interactive Demo</title>
+    
+    <!-- Import Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #080c14;
+            --panel-bg: rgba(13, 18, 30, 0.75);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --gold: #f59e0b;
+            --blue: #3b82f6;
+            --green: #10b981;
+            --red: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ─── GLASSMORPHIC LAYOUTS ─── */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+        }
+
+        /* ─── LOGIN OVERLAY ─── */
+        #login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+        }
+
+        .login-card {
+            width: 420px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .login-card h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+            background: linear-gradient(to right, #3b82f6, #60a5fa, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--blue);
+        }
+
+        .btn-start {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
+        }
+
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        }
+
+        #login-error {
+            color: var(--red);
+            font-size: 0.9rem;
+            margin-top: 15px;
+            min-height: 20px;
+        }
+
+        /* ─── STORYLINE OVERLAY ─── */
+        #storyline-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #0f172a 10%, #030712 100%);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 90;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .storyline-card {
+            width: 850px;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .storyline-card h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            text-align: center;
+            color: var(--gold);
+            letter-spacing: 1.5px;
+        }
+
+        .storyline-text {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .storyline-cast {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .cast-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .cast-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .cast-card img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--gold);
+            margin-bottom: 10px;
+        }
+
+        .cast-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .cast-role {
+            font-size: 0.8rem;
+            color: var(--gold);
+            margin-bottom: 8px;
+        }
+
+        .cast-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        .btn-enter-world {
+            align-self: center;
+            padding: 12px 40px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-enter-world:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        /* ─── SETTINGS MODAL overlay ─── */
+        #settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 110;
+        }
+
+        .settings-card {
+            width: 320px;
+            padding: 30px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .settings-card h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 10px;
+        }
+
+        .settings-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .settings-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .settings-btn.logout {
+            border-color: var(--red);
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .settings-btn.logout:hover {
+            background: rgba(239, 68, 68, 0.25);
+        }
+
+        .settings-btn.close {
+            background: var(--blue);
+            border: none;
+            color: white;
+        }
+
+        /* ─── MAIN GAME CONTAINER ─── */
+        #game-container {
+            width: 1024px;
+            height: 640px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        /* ─── HUD TOP BAR ─── */
+        #hud-bar {
+            height: 60px;
+            width: 100%;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .hud-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .hud-profile {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            color: var(--blue);
+            font-size: 1.1rem;
+        }
+
+        .hud-gold {
+            color: var(--gold);
+            font-weight: 600;
+        }
+
+        .hud-quests {
+            font-size: 0.9rem;
+            color: var(--green);
+        }
+
+        .hud-inventory {
+            font-size: 0.9rem;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .hp-bar-bg {
+            width: 80px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+        }
+        .hp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+            transition: width 0.3s ease;
+        }
+        .btn-use-item {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            margin-left: 4px;
+            cursor: pointer;
+            line-height: 1;
+            transition: all 0.2s;
+        }
+        .btn-use-item:hover {
+            background: rgba(239, 68, 68, 0.35);
+            color: #ffffff;
+        }
+
+        .btn-settings-trigger {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .btn-settings-trigger:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* ─── GAME VIEWPORT ─── */
+        #viewport-wrapper {
+            flex-grow: 1;
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a;
+        }
+
+        /* ─── DIALOGUE OVERLAY DRAWER ─── */
+        #dialogue-drawer {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            right: 15px;
+            height: 220px;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+            transform: translateY(260px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 10;
+        }
+
+        #dialogue-drawer.active {
+            transform: translateY(0);
+        }
+
+        .dialogue-close-btn {
+            position: absolute;
+            top: 12px;
+            right: 18px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.6rem;
+            cursor: pointer;
+            transition: color 0.2s, transform 0.2s;
+            z-index: 12;
+            padding: 5px;
+            line-height: 1;
+        }
+
+        .dialogue-close-btn:hover {
+            color: #ef4444;
+            transform: scale(1.15);
+        }
+
+        .dialogue-portrait {
+            width: 150px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .dialogue-portrait img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .dialogue-content {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            justify-content: space-between;
+        }
+
+        .dialogue-header {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--gold);
+        }
+
+        .dialogue-body {
+            font-size: 0.95rem;
+            line-height: 1.4;
+            max-height: 80px;
+            overflow-y: auto;
+            color: var(--text-main);
+            margin: 5px 0;
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        .chat-input-row input {
+            flex-grow: 1;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .chat-input-row button {
+            padding: 8px 16px;
+            background: var(--blue);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .dialogue-options {
+            width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .option-btn {
+            width: 100%;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            text-align: left;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--blue);
+        }
+
+        .option-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. LOGIN OVERLAY PANEL -->
+    <div id="login-overlay">
+        <div class="login-card glass-panel">
+            <h1>KINGDOM FRONTIER</h1>
+            <div class="form-group">
+                <label for="username">Adventurer Name</label>
+                <input type="text" id="username" placeholder="E.g., Galahad" value="Galahad" oninput="checkUserType()">
+            </div>
+            <div class="form-group" id="class-group">
+                <label for="class-select">Character Class</label>
+                <select id="class-select">
+                    <option value="Warrior">Warrior</option>
+                    <option value="Mage">Mage</option>
+                    <option value="Rogue">Rogue</option>
+                    <option value="Cleric">Cleric</option>
+                </select>
+            </div>
+            <button class="btn-start" onclick="handleStartJourney()">Begin Journey</button>
+            <div id="login-error"></div>
+        </div>
+    </div>
+
+    <!-- 2. STORYLINE / LORE OVERLAY -->
+    <div id="storyline-overlay">
+        <div class="storyline-card glass-panel">
+            <h2>THE LORE OF KINGDOM FRONTIER</h2>
+            
+            <div class="storyline-text">
+                The northern frontier of the kingdom is cold, wild, and forgotten. Dark rumors whisper that a shard of 
+                <strong>Frostbane</strong>—a mythical relic sword of ancient power—lies frozen somewhere in these snowfields. 
+                As a newly arrived adventurer, you must navigate local factions, complete tasks, trade, and build relationships 
+                to uncover the location of the shard. Approach the frontier's inhabitants to uncover the secrets!
+            </div>
+
+            <div class="storyline-cast">
+                <div class="cast-card">
+                    <img src="assets/characters/mira_portrait.png" alt="Mira">
+                    <div class="cast-name">Mira</div>
+                    <div class="cast-role">Merchant</div>
+                    <div class="cast-desc">Handles the Market Square. Sells tools, items, and values gold. A good starting contact.</div>
+                </div>
+                <div class="cast-card">
+                    <img src="assets/characters/captain_aldric_portrait.png" alt="Aldric">
+                    <div class="cast-name">Captain Aldric</div>
+                    <div class="cast-role">Castle Guard</div>
+                    <div class="cast-desc">Commands the Castle Gate. Protects the borders and rewards status, honor, and loyalty.</div>
+                </div>
+                <div class="cast-card">
+                    <img src="assets/characters/elder_thorn_portrait.png" alt="Thorn">
+                    <div class="cast-name">Elder Thorn</div>
+                    <div class="cast-role">Wise Elder</div>
+                    <div class="cast-desc">Sits in the Sacred Grove. Knows ancient lore, prophecies, and details about the shard.</div>
+                </div>
+                <div class="cast-card">
+                    <img src="assets/characters/shade_portrait.png" alt="Shade">
+                    <div class="cast-name">Shade</div>
+                    <div class="cast-role">Shadow Guild</div>
+                    <div class="cast-desc">Hangs in the Tavern docks. Deals in rumors, items of questionable origin, and secrecy.</div>
+                </div>
+            </div>
+
+            <button class="btn-enter-world" onclick="enterWorldFromStoryline()">Enter Frontier</button>
+        </div>
+    </div>
+
+    <!-- 3. SETTINGS MODAL OVERLAY -->
+    <div id="settings-overlay">
+        <div class="settings-card glass-panel">
+            <h3>GAME SETTINGS</h3>
+            <button class="settings-btn" onclick="showStorylineFromSettings()">Story & Lore</button>
+            <button class="settings-btn logout" onclick="handleLogoutFromSettings()">Logout</button>
+            <button class="settings-btn close" onclick="closeSettingsModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- 4. GAME CONTAINER -->
+    <div id="game-container">
+        
+        <!-- TOP HUD STATS BAR -->
+        <div id="hud-bar" class="glass-panel">
+            <div class="hud-cell">
+                <span id="hud-name-class" class="hud-profile">Adventurer (Warrior)</span>
+            </div>
+            <div class="hud-cell" style="display:flex; align-items:center; gap:8px;">
+                <span style="color:#ef4444; font-weight:600; font-size:0.9rem;">HP:</span>
+                <div class="hp-bar-bg">
+                    <div id="hud-hp-fill" class="hp-bar-fill" style="width: 100%;"></div>
+                </div>
+                <span id="hud-hp-text" style="font-size:0.85rem; color:#fca5a5; min-width:55px;">100/100</span>
+            </div>
+            <div class="hud-cell">
+                <span id="hud-gold" class="hud-gold">Gold: 100</span>
+            </div>
+            <div class="hud-cell">
+                <span id="hud-inventory" class="hud-inventory">Items: None</span>
+            </div>
+            <div class="hud-cell">
+                <span id="hud-quests" class="hud-quests">Quests: None</span>
+            </div>
+            <div class="hud-cell">
+                <button class="btn-settings-trigger" onclick="openSettingsModal()">⚙️ Settings</button>
+            </div>
+        </div>
+
+        <!-- VIEWPORT VIEW (CANVAS) -->
+        <div id="viewport-wrapper">
+            <canvas id="gameCanvas" width="1024" height="480"></canvas>
+
+            <!-- BOTTOM DIALOGUE BOX (SLIDE IN DRAWER) -->
+            <div id="dialogue-drawer" class="glass-panel">
+                <button class="dialogue-close-btn" onclick="closeDialogue()" title="Close Chat">&times;</button>
+                <div class="dialogue-portrait">
+                    <img id="npc-face" src="" alt="NPC Portrait">
+                </div>
+                
+                <div class="dialogue-content">
+                    <div id="npc-name" class="dialogue-header">Mira</div>
+                    <div id="dialogue-text" class="dialogue-body">Greeting traveler...</div>
+                    <div class="chat-input-row">
+                        <input type="text" id="chat-input" placeholder="Type your response..." onkeydown="if(event.key==='Enter') submitCustomText()">
+                        <button onclick="submitCustomText()">Send</button>
+                    </div>
+                </div>
+
+                <div class="dialogue-options">
+                    <button class="option-btn" id="opt-0" onclick="selectOption(0)">Option 1</button>
+                    <button class="option-btn" id="opt-1" onclick="selectOption(1)">Option 2</button>
+                    <button class="option-btn" id="opt-2" onclick="selectOption(2)">Option 3</button>
+                    <button class="option-btn" id="opt-3" onclick="selectOption(3)">Option 4</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8001";
+
+        // Helper to remove white/grey grid square background from generated sprites
+        function makeImageTransparent(img, threshold = 130) {
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = img.naturalWidth || img.width;
+            tempCanvas.height = img.naturalHeight || img.height;
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCtx.drawImage(img, 0, 0);
+            
+            try {
+                const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i+1];
+                    const b = data[i+2];
+                    
+                    // If pixel is light grey or white (like the grid square background)
+                    if (r > threshold && g > threshold && b > threshold) {
+                        data[i+3] = 0; // Set alpha to 0
+                    }
+                }
+                tempCtx.putImageData(imgData, 0, 0);
+                const resultImg = new Image();
+                resultImg.src = tempCanvas.toDataURL();
+                return resultImg;
+            } catch (e) {
+                console.error("Could not strip background:", e);
+                return img;
+            }
+        }
+
+        // Global state machine matching GameState.gd
+        const State = {
+            player_name: "",
+            character_class: "",
+            gold: 100,
+            inventory: [], // Stores objects: {name: string, durability: number}
+            active_quests: {},
+            active_npc: null,
+            is_dialogue_active: false,
+            hp: 100,
+            max_hp: 100,
+            current_map: "world" // "world", "dragon_lair", "castle_interior"
+        };
+
+        // Multi-map objects and states
+        let magicPortal = null; // { x, y, radius, pulse }
+        let dragonBoss = null; // { x, y, hp, max_hp, direction, speed, fireCooldown }
+        let dragonProjectiles = []; // Array of fireballs { x, y, vx, vy, radius }
+        let dragonDiamondDrop = null; // { x, y }
+        let castleChests = []; // Array of chests { x, y, collected, name }
+
+        // Cache existing player list to toggle login style dynamically
+        let existingPlayers = [];
+
+        async function fetchPlayersList() {
+            try {
+                const res = await fetch(`${API_URL}/players`);
+                if (res.ok) {
+                    const data = await res.json();
+                    existingPlayers = data.players.map(p => p.player_name.toLowerCase());
+                }
+            } catch (err) {
+                console.error("Could not fetch players list", err);
+            }
+        }
+
+        // Toggles button text based on typed username
+        function checkUserType() {
+            const nameInput = document.getElementById("username");
+            const name = nameInput.value.trim().toLowerCase();
+            const btn = document.querySelector(".btn-start");
+            const classGroup = document.getElementById("class-group");
+
+            if (name.length < 3) {
+                btn.innerText = "Begin Journey";
+                btn.style.background = "";
+                classGroup.style.display = "block";
+                return;
+            }
+
+            if (existingPlayers.includes(name)) {
+                btn.innerText = "Continue Journey";
+                btn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green
+                classGroup.style.display = "none";
+            } else {
+                btn.innerText = "Begin Journey";
+                btn.style.background = ""; // Reset to default blue
+                classGroup.style.display = "block";
+            }
+        }
+
+        async function handleAutoLogin(name) {
+            const errorDiv = document.getElementById("login-error");
+            if (errorDiv) errorDiv.innerText = "Restoring session for " + name + "...";
+            try {
+                const response = await fetch(`${API_URL}/register_player`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_name: name, character_class: "warrior" })
+                });
+
+                if (!response.ok) throw new Error("Server communication issue");
+
+                const data = await response.json();
+                if (data.success) {
+                    State.player_name = data.player_name;
+                    State.character_class = data.character_class;
+                    State.gold = data.gold;
+
+                    // Retrieve saved inventory, HP, and gold from the database
+                    const invRes = await fetch(`${API_URL}/player_inventory/${encodeURIComponent(name)}`);
+                    if (invRes.ok) {
+                        const invData = await invRes.json();
+                        State.gold = invData.gold;
+                        State.hp = invData.hp !== undefined ? invData.hp : 100;
+                        State.max_hp = invData.max_hp !== undefined ? invData.max_hp : 100;
+                        const expanded = [];
+                        invData.items.forEach(item => {
+                            for (let i = 0; i < item.quantity; i++) {
+                                expanded.push({
+                                    name: item.name,
+                                    category: item.category,
+                                    durability: item.durability
+                                });
+                            }
+                        });
+                        State.inventory = expanded;
+                    }
+
+                    // Retrieve saved quest states from the database
+                    const questRes = await fetch(`${API_URL}/quest_state/${encodeURIComponent(name)}`);
+                    if (questRes.ok) {
+                        const questData = await questRes.json();
+                        State.active_quests = {};
+                        if (questData.quests) {
+                            questData.quests.forEach(q => {
+                                 State.active_quests[q.quest_id] = {
+                                     status: q.status,
+                                     step: q.current_step,
+                                     flags: q.flags || {}
+                                 };
+                            });
+                        }
+                    }
+                    
+                    updateHUD();
+                    
+                    // Directly enter the game bypass login overlay
+                    document.getElementById("login-overlay").style.opacity = 0;
+                    setTimeout(() => {
+                        document.getElementById("login-overlay").style.display = "none";
+                        
+                        const gameContainer = document.getElementById("game-container");
+                        gameContainer.style.opacity = 1;
+                        
+                        // Spawn first animal immediately and set spawning loop (every 18 seconds)
+                        spawnAnimal();
+                        setInterval(spawnAnimal, 18000);
+                        
+                        // Start main game loop
+                        requestAnimationFrame(gameLoop);
+                    }, 500);
+                }
+            } catch (err) {
+                console.error("Auto login failed:", err);
+                if (errorDiv) errorDiv.innerText = "Connection lost. Please login manually.";
+            }
+        }
+
+        // Fetch players on load to seed autocomplete
+        window.addEventListener("DOMContentLoaded", async () => {
+            await fetchPlayersList();
+            checkUserType(); // Initialize button state for default-typed name on load
+            
+            // Auto login if player exists in localStorage
+            const storedPlayer = localStorage.getItem("kf_player_name");
+            if (storedPlayer) {
+                document.getElementById("username").value = storedPlayer;
+                await handleAutoLogin(storedPlayer);
+            }
+        });
+
+        // Canvas Setup
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Load visual character assets (images copied from Godot folder)
+        const assets = {
+            player: {
+                full: new Image(),
+                portrait: "assets/characters/player_adventurer_portrait.png"
+            },
+            npcs: {
+                "Elder Thorn": {
+                    full: new Image(),
+                    portrait: "assets/characters/elder_thorn_portrait.png",
+                    x: 220, y: 115
+                },
+                "Mira": {
+                    full: new Image(),
+                    portrait: "assets/characters/mira_portrait.png",
+                    x: 220, y: 370
+                },
+                "Captain Aldric": {
+                    full: new Image(),
+                    portrait: "assets/characters/captain_aldric_portrait.png",
+                    x: 800, y: 115
+                },
+                "Shade": {
+                    full: new Image(),
+                    portrait: "assets/characters/shade_portrait.png",
+                    x: 800, y: 370
+                }
+            },
+            backgrounds: {
+                market: new Image(),
+                grove: new Image(),
+                castle: new Image(),
+                tavern: new Image()
+            },
+            wild_boar: new Image(),
+            dragon_lair_bg: new Image(),
+            castle_interior_bg: new Image(),
+            dragon_sprite: new Image(),
+            diamond_icon: new Image(),
+            castle_loot_icon: new Image()
+        };
+
+        // Assign source paths to sprites
+        assets.player.full.src = "assets/characters/player_adventurer_fullbody.png";
+        assets.npcs["Mira"].full.src = "assets/characters/mira_fullbody.png";
+        assets.npcs["Captain Aldric"].full.src = "assets/characters/captain_aldric_fullbody.png";
+        assets.npcs["Elder Thorn"].full.src = "assets/characters/elder_thorn_fullbody.png";
+        assets.npcs["Shade"].full.src = "assets/characters/shade_fullbody.png";
+
+        // Assign source paths to backgrounds
+        assets.backgrounds.market.src = "assets/market_square_bg.png";
+        assets.backgrounds.grove.src = "assets/sacred_grove_bg.png";
+        assets.backgrounds.castle.src = "assets/castle_gate_bg.png";
+        assets.backgrounds.tavern.src = "assets/dockside_tavern_bg.png";
+        
+        assets.dragon_lair_bg.src = "assets/dragon_lair_bg.png";
+        assets.castle_interior_bg.src = "assets/castle_interior_bg.png";
+        assets.dragon_sprite.src = "assets/dragon_sprite.png";
+        assets.diamond_icon.src = "assets/diamond_icon.png";
+        assets.castle_loot_icon.src = "assets/castle_loot_icon.png";
+        
+        // Load boar and dynamically remove background grid lines
+        assets.wild_boar.onload = () => {
+            assets.wild_boar = makeImageTransparent(assets.wild_boar, 130);
+        };
+        assets.wild_boar.src = "assets/wild_boar.png";
+
+        // Combat & Spawning States
+        let activeAnimals = [];
+        let floatyTexts = [];
+        let slashAnimation = { active: false, frame: 0, x: 0, y: 0, direction: "down" };
+        let lastDirection = "down";
+        let boarKillCount = 0;
+
+        // Player Position & Vector
+        const player = {
+            x: 512,
+            y: 280,
+            speed: 5,
+            width: 50,
+            height: 90
+        };
+
+        // Key states
+        const keys = {};
+        window.addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; });
+        window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+        window.addEventListener("blur", () => {
+            Object.keys(keys).forEach(k => keys[k] = false);
+        });
+
+        // Handle E key for interaction and Spacebar for combat
+        window.addEventListener("keydown", e => {
+            if (e.key.toLowerCase() === 'e') {
+                handleInteraction();
+            }
+            if (e.code === 'Space') {
+                // Prevent screen scrolling when pressing Space in game view
+                if (document.activeElement !== document.getElementById("chat-input") && document.activeElement !== document.getElementById("username")) {
+                    e.preventDefault();
+                    handleCombatAttack();
+                }
+            }
+        });
+
+        function createFloatyText(text, x, y, color) {
+            floatyTexts.push({
+                text: text,
+                x: x,
+                y: y,
+                color: color,
+                life: 40
+            });
+        }
+
+        async function reduceWeaponDurability(weaponName) {
+            try {
+                const res = await fetch(`${API_URL}/use_weapon`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player_name: State.player_name,
+                        weapon_name: weaponName
+                    })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const idx = State.inventory.findIndex(item => item.name === weaponName);
+                    if (idx !== -1) {
+                        if (data.broken) {
+                            State.inventory.splice(idx, 1);
+                            createFloatyText(`${weaponName} Broke!`, player.x, player.y - 70, "#ef4444");
+                        } else {
+                            State.inventory[idx].durability = data.durability;
+                        }
+                    }
+                    updateHUD();
+                }
+            } catch (e) {
+                console.error("Failed to reduce weapon durability:", e);
+            }
+        }
+
+        function handleCombatAttack() {
+            if (State.is_dialogue_active) return;
+
+            // Find the best weapon in inventory
+            const weaponHierarchy = [
+                { name: "Diamond Greatsword", damage: 20 },
+                { name: "Frostbane Katana", damage: 15 },
+                { name: "Steel Sword", damage: 10 },
+                { name: "Thornwood Bow", damage: 10 },
+                { name: "Hunting Knife", damage: 5 }
+            ];
+            
+            let chosenWeapon = null;
+            for (const w of weaponHierarchy) {
+                const found = State.inventory.find(item => item.name.toLowerCase() === w.name.toLowerCase());
+                if (found) {
+                    chosenWeapon = { item: found, damage: w.damage };
+                    break;
+                }
+            }
+
+            let finalDamage = 2;
+            if (chosenWeapon) {
+                finalDamage = chosenWeapon.damage;
+                reduceWeaponDurability(chosenWeapon.item.name);
+            } else {
+                // Fists recoil: player takes 10 recoil damage
+                createFloatyText("Recoil! -10 HP", player.x, player.y - 65, "#ef4444");
+                updatePlayerHpOnServer(State.hp - 10);
+                if (State.hp - 10 <= 0) {
+                    handlePlayerDefeat();
+                    return;
+                }
+            }
+
+            // Trigger slash animation
+            slashAnimation.active = true;
+            slashAnimation.frame = 0;
+            slashAnimation.x = player.x;
+            slashAnimation.y = player.y;
+            slashAnimation.direction = lastDirection;
+
+            // Damage logic based on map
+            if (State.current_map === "dragon_lair") {
+                if (dragonBoss && dragonBoss.hp > 0) {
+                    const dist = Math.hypot(player.x - dragonBoss.x, player.y - dragonBoss.y);
+                    if (dist < 250) {
+                        dragonBoss.hp -= finalDamage;
+                        dragonBoss.damageFlash = 10;
+                        createFloatyText(`-${finalDamage} HP`, dragonBoss.x, dragonBoss.y - 60, "#ef4444");
+                        
+                        if (dragonBoss.hp <= 0) {
+                            dragonDiamondDrop = { x: dragonBoss.x, y: dragonBoss.y + 40 };
+                            createFloatyText("Dragon Slayed!", dragonBoss.x, dragonBoss.y, "#10b981");
+                        }
+                    }
+                }
+            } else if (State.current_map === "world") {
+                activeAnimals.forEach(animal => {
+                    const dx = player.x - animal.x;
+                    const dy = player.y - animal.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 65) {
+                        animal.hp -= finalDamage;
+                        animal.damageFlash = 10;
+                        animal.raged = true; // Boar runs to player and attacks!
+                        createFloatyText(`-${finalDamage} HP`, animal.x, animal.y - 40, "#ef4444");
+
+                        if (animal.hp <= 0) {
+                            setTimeout(() => {
+                                activeAnimals = activeAnimals.filter(a => a !== animal);
+                                boarKillCount++;
+                                let gold = 5;
+                                if (boarKillCount % 5 === 0) {
+                                    gold = 10;
+                                    createFloatyText("5th Kill Bonus!", player.x, player.y - 80, "#f59e0b");
+                                }
+                                sendLootReward("Raw Meat", gold);
+
+                                if (State.active_quests.side_boar_hunter && State.active_quests.side_boar_hunter.status === "in_progress") {
+                                    fetch(`${API_URL}/update_quest_progress`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            player_name: State.player_name,
+                                            quest_id: "side_boar_hunter",
+                                            flag_key: "kills",
+                                            increment: 1
+                                        })
+                                    }).then(res => res.json()).then(data => {
+                                        if (data.success) {
+                                            State.active_quests.side_boar_hunter.flags = data.flags;
+                                            updateHUD();
+                                        }
+                                    });
+                                }
+                            }, 100);
+                        }
+                    }
+                });
+            }
+        }
+
+        function handlePlayerDefeat() {
+            player.x = 520;
+            player.y = 260;
+            State.current_map = "world";
+            updatePlayerHpOnServer(15, -10); // Resets HP to 15, deducts 10 gold penalty
+            alert("You were defeated! You wake up at the crossroads, feeling weak and having lost 10 Gold.");
+        }
+
+        async function sendLootReward(item, gold) {
+            try {
+                // Update local memory state first so player gets coins immediately
+                State.gold += gold;
+                State.inventory.push({ name: item, durability: -1 });
+                updateHUD();
+                createFloatyText(`Gained: +${gold} Gold, +1 ${item}!`, player.x, player.y - 60, "#10b981");
+
+                // Sync persistently with the database
+                fetch(`${API_URL}/add_loot`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player_name: State.player_name,
+                        gold_reward: gold,
+                        items_reward: [item]
+                    })
+                }).catch(err => console.error("Database sync deferred:", err));
+
+            } catch (err) {
+                console.error("Loot handler execution issue:", err);
+            }
+        }
+
+        async function updatePlayerHpOnServer(hp, goldChange = 0) {
+            if (hp < 0) hp = 0;
+            State.hp = hp;
+            try {
+                const res = await fetch(`${API_URL}/update_hp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player_name: State.player_name,
+                        hp: hp,
+                        gold_change: goldChange
+                    })
+                });
+                if (res.ok) {
+                    if (goldChange !== 0) {
+                        const invRes = await fetch(`${API_URL}/player_inventory/${encodeURIComponent(State.player_name)}`);
+                        if (invRes.ok) {
+                            const invData = await invRes.json();
+                            State.gold = invData.gold;
+                        }
+                    }
+                    updateHUD();
+                }
+            } catch (e) {
+                console.error("Failed to sync HP on server:", e);
+            }
+        }
+
+        async function useConsumable(itemName) {
+            try {
+                const res = await fetch(`${API_URL}/consume_item`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player_name: State.player_name,
+                        item_name: itemName
+                    })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        State.hp = data.hp;
+                        // Remove 1 item from local state
+                        const idx = State.inventory.findIndex(item => item.name === itemName);
+                        if (idx !== -1) State.inventory.splice(idx, 1);
+                        updateHUD();
+                        createFloatyText(`Healed! HP: ${State.hp}/${data.max_hp}`, player.x, player.y - 45, "#10b981");
+                    } else {
+                        alert(data.message);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to consume item:", e);
+            }
+        }
+
+        function spawnAnimal() {
+            if (activeAnimals.length >= 3) return; // Limit total active spawns
+
+            // Quadrant bounding box parameters outside crossroads
+            const quadrants = [
+                { xMin: 50, xMax: 440, yMin: 50, yMax: 180 }, // Top-Left
+                { xMin: 50, xMax: 440, yMin: 320, yMax: 430 }, // Bottom-Left
+                { xMin: 600, xMax: 970, yMin: 50, yMax: 180 }, // Top-Right
+                { xMin: 600, xMax: 970, yMin: 320, yMax: 430 }  // Bottom-Right
+            ];
+
+            const quad = quadrants[Math.floor(Math.random() * quadrants.length)];
+            const rx = Math.floor(Math.random() * (quad.xMax - quad.xMin)) + quad.xMin;
+            const ry = Math.floor(Math.random() * (quad.yMax - quad.yMin)) + quad.yMin;
+
+            activeAnimals.push({
+                x: rx,
+                y: ry,
+                hp: 30,
+                maxHp: 30,
+                type: "Wild Boar",
+                width: 50,
+                height: 50,
+                damageFlash: 0
+            });
+        }
+
+        // API Integration: Register Player
+        async function handleStartJourney() {
+            const name = document.getElementById("username").value.trim();
+            const charClass = document.getElementById("class-select").value;
+            const errorDiv = document.getElementById("login-error");
+
+            if (name.length < 3) {
+                errorDiv.innerText = "Adventurer Name must be at least 3 characters.";
+                return;
+            }
+
+            errorDiv.innerText = "Connecting to Kingdom Frontier...";
+
+            try {
+                const response = await fetch(`${API_URL}/register_player`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_name: name, character_class: charClass })
+                });
+
+                if (!response.ok) throw new Error("Server communication issue");
+
+                const data = await response.json();
+                if (data.success) {
+                    localStorage.setItem("kf_player_name", data.player_name);
+                    State.player_name = data.player_name;
+                    State.character_class = data.character_class;
+                    State.gold = data.gold;
+
+                    // Retrieve saved inventory, HP, and gold from the database
+                    try {
+                        const invRes = await fetch(`${API_URL}/player_inventory/${encodeURIComponent(name)}`);
+                        if (invRes.ok) {
+                            const invData = await invRes.json();
+                            State.gold = invData.gold;
+                            State.hp = invData.hp !== undefined ? invData.hp : 100;
+                            State.max_hp = invData.max_hp !== undefined ? invData.max_hp : 100;
+                            // Map inventory items, expanding them by their saved quantity and retaining durability
+                            const expanded = [];
+                            invData.items.forEach(item => {
+                                for (let i = 0; i < item.quantity; i++) {
+                                    expanded.push({
+                                        name: item.name,
+                                        category: item.category,
+                                        durability: item.durability
+                                    });
+                                }
+                            });
+                            State.inventory = expanded;
+                        }
+                    } catch (e) {
+                        console.error("Error fetching inventory on login:", e);
+                    }
+
+                    // Retrieve saved quest states from the database
+                    try {
+                        const questRes = await fetch(`${API_URL}/quest_state/${encodeURIComponent(name)}`);
+                        if (questRes.ok) {
+                            const questData = await questRes.json();
+                            State.active_quests = {};
+                            if (questData.quests) {
+                                questData.quests.forEach(q => {
+                                     State.active_quests[q.quest_id] = {
+                                         status: q.status,
+                                         step: q.current_step,
+                                         flags: q.flags || {}
+                                     };
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Error fetching quests on login:", e);
+                    }
+                    
+                    updateHUD();
+                    
+                    // Show middle storyline page instead of entering directly
+                    document.getElementById("login-overlay").style.opacity = 0;
+                    setTimeout(() => {
+                        document.getElementById("login-overlay").style.display = "none";
+                        
+                        const storyOverlay = document.getElementById("storyline-overlay");
+                        storyOverlay.style.display = "flex";
+                        setTimeout(() => {
+                            storyOverlay.style.opacity = 1;
+                        }, 50);
+                    }, 500);
+                } else {
+                    errorDiv.innerText = "Login failed. Check server status.";
+                }
+            } catch (err) {
+                errorDiv.innerText = "Cannot connect to server. Ensure FastAPI is running on port 8001.";
+            }
+        }
+
+        // Transition from Storyline screen into world
+        function enterWorldFromStoryline() {
+            const storyOverlay = document.getElementById("storyline-overlay");
+            storyOverlay.style.opacity = 0;
+            setTimeout(() => {
+                storyOverlay.style.display = "none";
+                
+                const gameContainer = document.getElementById("game-container");
+                gameContainer.style.opacity = 1;
+                
+                // Spawn first animal immediately and set spawning loop (every 18 seconds)
+                spawnAnimal();
+                setInterval(spawnAnimal, 18000);
+                
+                // Start main game loop
+                requestAnimationFrame(gameLoop);
+            }, 500);
+        }
+
+        // Settings modal controls
+        function openSettingsModal() {
+            document.getElementById("settings-overlay").style.display = "flex";
+        }
+
+        function closeSettingsModal() {
+            document.getElementById("settings-overlay").style.display = "none";
+        }
+
+        function showStorylineFromSettings() {
+            closeSettingsModal();
+            
+            // Hide game container, show storyline overlay
+            document.getElementById("game-container").style.opacity = 0;
+            
+            const storyOverlay = document.getElementById("storyline-overlay");
+            storyOverlay.style.display = "flex";
+            setTimeout(() => {
+                storyOverlay.style.opacity = 1;
+            }, 50);
+        }
+
+        function handleLogoutFromSettings() {
+            closeSettingsModal();
+            handleLogout();
+        }
+
+        function handleLogout() {
+            localStorage.removeItem("kf_player_name");
+            // Close active dialogues
+            closeDialogue();
+            
+            // Reset character states
+            State.player_name = "";
+            State.character_class = "";
+            State.gold = 100;
+            State.inventory = [];
+            State.active_quests = {};
+            State.active_npc = null;
+            State.is_dialogue_active = false;
+            
+            // Reset active animals and floaty texts
+            activeAnimals = [];
+            floatyTexts = [];
+            
+            // Reset player coordinates to map center
+            player.x = 512;
+            player.y = 280;
+
+            // Re-fetch players list in case they created one
+            fetchPlayersList();
+            
+            // Transition viewports
+            document.getElementById("game-container").style.opacity = 0;
+            document.getElementById("login-overlay").style.display = "flex";
+            setTimeout(() => {
+                document.getElementById("login-overlay").style.opacity = 1;
+                document.getElementById("login-error").innerText = "";
+            }, 50);
+        }
+
+        // Update top stats panel (HUD)
+        function updateHUD() {
+            document.getElementById("hud-name-class").innerText = `${State.player_name} (${State.character_class.charAt(0).toUpperCase() + State.character_class.slice(1)})`;
+            document.getElementById("hud-gold").innerText = `Gold: ${State.gold}`;
+            
+            // Sync HP Bar
+            const hpPct = Math.min(100, Math.max(0, (State.hp / State.max_hp) * 100));
+            document.getElementById("hud-hp-fill").style.width = hpPct + "%";
+            document.getElementById("hud-hp-text").innerText = `${State.hp}/${State.max_hp}`;
+
+            if (State.inventory.length === 0) {
+                document.getElementById("hud-inventory").innerHTML = "Items: None";
+            } else {
+                // Group duplicates and display counts
+                const counts = {};
+                const durabilities = {};
+                State.inventory.forEach(item => {
+                    const name = typeof item === "string" ? item : item.name;
+                    const dur = (item && item.durability !== undefined) ? item.durability : -1;
+                    counts[name] = (counts[name] || 0) + 1;
+                    if (dur > 0) {
+                        durabilities[name] = dur;
+                    }
+                });
+                
+                const formattedItems = Object.entries(counts).map(([name, count]) => {
+                    let disp = name;
+                    if (durabilities[name] !== undefined) {
+                        disp += ` (${durabilities[name]} durability)`;
+                    }
+                    let itemStr = count > 1 ? `${disp} x${count}` : disp;
+                    
+                    const lowerName = name.toLowerCase();
+                    if (lowerName === "raw meat") {
+                        return `<span style="white-space:nowrap; display:inline-flex; align-items:center;">${itemStr}<button class="btn-use-item" onclick="useConsumable('Raw Meat')">Eat</button></span>`;
+                    }
+                    if (lowerName === "health potion") {
+                        return `<span style="white-space:nowrap; display:inline-flex; align-items:center;">${itemStr}<button class="btn-use-item" onclick="useConsumable('Health Potion')">Drink</button></span>`;
+                    }
+                    if (lowerName === "frostbane katana" || lowerName === "katana" || lowerName === "steel sword" || lowerName === "hunting knife" || lowerName === "thornwood bow" || lowerName === "diamond greatsword") {
+                        return `<span style="white-space:nowrap; display:inline-flex; align-items:center;">${itemStr}<button class="btn-use-item" onclick="handleCombatAttack()">Use</button></span>`;
+                    }
+                    return `<span style="white-space:nowrap;">${itemStr}</span>`;
+                });
+                
+                document.getElementById("hud-inventory").innerHTML = "Items: " + formattedItems.join(", ");
+            }
+
+            const questIds = Object.keys(State.active_quests);
+            const activeQuestIds = questIds.filter(id => {
+                const status = State.active_quests[id].status.toLowerCase();
+                return status === "in_progress" || status === "active" || status === "started";
+            });
+
+            if (activeQuestIds.length === 0) {
+                document.getElementById("hud-quests").innerText = "Quests: None";
+            } else {
+                const questStrings = activeQuestIds.map(id => {
+                    const q = State.active_quests[id];
+                    const niceId = id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                    if (q.flags && typeof q.flags.kills !== "undefined" && typeof q.flags.required_kills !== "undefined") {
+                        return `${niceId} (Kills: ${q.flags.kills}/${q.flags.required_kills})`;
+                    }
+                    if (q.flags && typeof q.flags.looted !== "undefined" && typeof q.flags.required_loot !== "undefined") {
+                        return `${niceId} (Looted: ${q.flags.looted}/${q.flags.required_loot})`;
+                    }
+                    const niceStatus = q.status.charAt(0).toUpperCase() + q.status.slice(1);
+                    return `${niceId} (${niceStatus}, Step ${q.step})`;
+                });
+                document.getElementById("hud-quests").innerText = `Quests: ${questStrings.join(" | ")}`;
+            }
+        }
+
+        // Dialogue System triggers conversation initiation
+        async function handleInteraction() {
+            if (State.is_dialogue_active) return;
+
+            // Find closest NPC in range
+            let closestNpc = null;
+            let minDist = 70; // proximity threshold in pixels
+
+            for (const name in assets.npcs) {
+                const npc = assets.npcs[name];
+                const dx = player.x - npc.x;
+                const dy = player.y - npc.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestNpc = name;
+                }
+            }
+
+            if (closestNpc) {
+                initiateDialogue(closestNpc);
+            }
+        }
+
+        async function initiateDialogue(npcName) {
+            State.active_npc = npcName;
+            State.is_dialogue_active = true;
+
+            // Clear inputs and options
+            document.getElementById("chat-input").value = "";
+            
+            // Map NPC designations next to their name
+            const designations = {
+                "Mira": "Merchant",
+                "Captain Aldric": "Guard",
+                "Elder Thorn": "Wise Elder",
+                "Shade": "Shadow Guild"
+            };
+            const role = designations[npcName] || "NPC";
+            document.getElementById("npc-name").innerText = `${npcName} (${role})`;
+            
+            document.getElementById("dialogue-text").innerText = `Approaching ${npcName}...`;
+            document.getElementById("npc-face").src = assets.npcs[npcName].portrait;
+            
+            toggleInputElements(false);
+            document.getElementById("dialogue-drawer").classList.add("active");
+
+            try {
+                // Call /get_response with empty input to trigger NPC to greet first
+                const payload = {
+                    player_name: State.player_name,
+                    npc_name: npcName,
+                    held_items: getHeldItemsString(),
+                    player_input: "",
+                    selected_option_index: -1
+                };
+
+                const res = await fetch(`${API_URL}/get_response`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error("Dialogue initialization failed");
+
+                const data = await res.json();
+                processResponse(data);
+            } catch (err) {
+                document.getElementById("dialogue-text").innerText = "Lost mental connection to the minds...";
+                toggleInputElements(true);
+            }
+        }
+
+        // Selection of pre-made options
+        async function selectOption(index) {
+            const btn = document.getElementById(`opt-${index}`);
+            const text = btn.innerText;
+
+            if (text.toLowerCase().includes("farewell") || text.toLowerCase().includes("goodbye")) {
+                closeDialogue();
+                return;
+            }
+
+            document.getElementById("dialogue-text").innerText = `You: "${text}"...`;
+            toggleInputElements(false);
+
+            try {
+                const payload = {
+                    player_name: State.player_name,
+                    npc_name: State.active_npc,
+                    held_items: getHeldItemsString(),
+                    player_input: text,
+                    selected_option_index: index
+                };
+
+                const res = await fetch(`${API_URL}/get_response`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                processResponse(data);
+            } catch (err) {
+                document.getElementById("dialogue-text").innerText = "Connection severed...";
+                toggleInputElements(true);
+            }
+        }
+
+        // Submission of custom messaging box
+        async function submitCustomText() {
+            const input = document.getElementById("chat-input");
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = "";
+            document.getElementById("dialogue-text").innerText = `You: "${text}"...`;
+            toggleInputElements(false);
+
+            try {
+                const payload = {
+                    player_name: State.player_name,
+                    npc_name: State.active_npc,
+                    held_items: getHeldItemsString(),
+                    player_input: text,
+                    selected_option_index: -1
+                };
+
+                const res = await fetch(`${API_URL}/get_response`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                processResponse(data);
+            } catch (err) {
+                document.getElementById("dialogue-text").innerText = "Mind-meld failed...";
+                toggleInputElements(true);
+            }
+        }
+
+        function processResponse(data) {
+            if (!data) return;
+
+            document.getElementById("dialogue-text").innerText = data.npc_response || "...";
+            
+            const options = data.player_options || [];
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`opt-${i}`);
+                if (i < options.length) {
+                    btn.innerText = options[i];
+                    btn.style.display = "block";
+                } else {
+                    btn.style.display = "none";
+                }
+            }
+
+            // Sync inventory, gold and quest values returned from Python engine
+            if (data.quest_updates && data.quest_updates.quest_id) {
+                const qId = data.quest_updates.quest_id;
+                State.active_quests[qId] = {
+                    status: data.quest_updates.status || "active",
+                    step: data.quest_updates.step || data.quest_updates.current_step || 1,
+                    flags: data.quest_updates.flags || {}
+                };
+            }
+
+            if (data.inventory_changes) {
+                const changes = data.inventory_changes;
+                if (changes.gold) {
+                    State.gold = Math.max(0, State.gold + parseInt(changes.gold));
+                }
+                if (changes.items_added) {
+                    changes.items_added.forEach(item => {
+                        let durability = -1;
+                        const lowerItem = item.toLowerCase();
+                        if (lowerItem.includes("katana") || lowerItem.includes("steel sword") || lowerItem.includes("bow") || lowerItem.includes("shield")) {
+                            durability = 5;
+                        } else if (lowerItem.includes("knife")) {
+                            durability = 3;
+                        } else if (lowerItem.includes("greatsword")) {
+                            durability = 15;
+                        } else if (lowerItem.includes("dagger")) {
+                            durability = 10;
+                        }
+                        State.inventory.push({ name: item, durability: durability });
+                    });
+                }
+                if (changes.items_removed) {
+                    changes.items_removed.forEach(item => {
+                        const idx = State.inventory.findIndex(invItem => invItem.name === item);
+                        if (idx !== -1) State.inventory.splice(idx, 1);
+                    });
+                }
+            }
+
+            updateHUD();
+            toggleInputElements(true);
+        }
+
+        function toggleInputElements(enabled) {
+            document.getElementById("chat-input").disabled = !enabled;
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`opt-${i}`).disabled = !enabled;
+            }
+        }
+
+        function getHeldItemsString() {
+            if (State.inventory.length === 0) return `${State.gold} Gold`;
+            return `${State.gold} Gold, ${State.inventory.map(item => item.name).join(", ")}`;
+        }
+
+        function closeDialogue() {
+            document.getElementById("dialogue-drawer").classList.remove("active");
+            State.is_dialogue_active = false;
+            State.active_npc = null;
+        }
+
+        // ─── CANVAS GAME LOOP & RENDERING ───
+        function gameLoop() {
+            updatePlayerPosition();
+            updateFloatyTexts();
+            renderWorld();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateFloatyTexts() {
+            floatyTexts.forEach(ft => {
+                ft.y -= 1;
+                ft.life -= 1;
+            });
+            floatyTexts = floatyTexts.filter(ft => ft.life > 0);
+        }
+
+        function updatePlayerPosition() {
+            // Prevent movement if player is typing in the chat input
+            if (document.activeElement === document.getElementById("chat-input")) {
+                return;
+            }
+
+            let dx = 0;
+            let dy = 0;
+
+            if (keys['w'] || keys['arrowup']) { dy = -1; lastDirection = "up"; }
+            if (keys['s'] || keys['arrowdown']) { dy = 1; lastDirection = "down"; }
+            if (keys['a'] || keys['arrowleft']) { dx = -1; lastDirection = "left"; }
+            if (keys['d'] || keys['arrowright']) { dx = 1; lastDirection = "right"; }
+
+            // Normalize vector
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.7071;
+                dy *= 0.7071;
+            }
+
+            const nextX = player.x + dx * player.speed;
+            const nextY = player.y + dy * player.speed;
+
+            // Collision boundary checks (map boundaries)
+            player.x = Math.max(30, Math.min(canvas.width - 30, nextX));
+            player.y = Math.max(60, Math.min(canvas.height - 30, nextY));
+
+            // Close chat automatically if player walks out of range
+            if (State.is_dialogue_active && State.active_npc) {
+                const npc = assets.npcs[State.active_npc];
+                const distanceX = player.x - npc.x;
+                const distanceY = player.y - npc.y;
+                const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+                if (distance > 120) {
+                    closeDialogue();
+                }
+            }
+
+            // --- MAP SPECIFIC GAME LOGIC ---
+
+            if (State.current_map === "world") {
+                // 1. Check magic portal in Sacred Grove (summoned after Aldric suggestion and Thorn opening it)
+                const hasDiamond = State.inventory.some(item => (typeof item === "string" ? item : item.name).toLowerCase() === "diamond");
+                const isQuestStep3 = State.active_quests.main_enter_keep && State.active_quests.main_enter_keep.step === 3 && !hasDiamond;
+                if (isQuestStep3) {
+                    if (!magicPortal) {
+                        magicPortal = { x: 150, y: 190, radius: 25, pulse: 0 };
+                    }
+                    magicPortal.pulse += 0.05;
+                    if (Math.hypot(player.x - magicPortal.x, player.y - magicPortal.y) < 30) {
+                        State.current_map = "dragon_lair";
+                        player.x = 512;
+                        player.y = 350;
+                        dragonBoss = { x: 512, y: 120, hp: 100, max_hp: 100, direction: 1, speed: 2, fireCooldown: 60, damageFlash: 0 };
+                        dragonProjectiles = [];
+                        dragonDiamondDrop = null;
+                        createFloatyText("Entered Dragon Lair!", player.x, player.y - 40, "#ef4444");
+                        return;
+                    }
+                } else {
+                    magicPortal = null;
+                }
+
+                // 2. Check Castle Gate Portal near Captain Aldric
+                const isQuestCompleted = State.active_quests.main_enter_keep && State.active_quests.main_enter_keep.status.toLowerCase() === "completed";
+                if (isQuestCompleted && Math.hypot(player.x - 800, player.y - 50) < 30) {
+                    // Teleport to Castle Interior!
+                    State.current_map = "castle_interior";
+                    player.x = 512;
+                    player.y = 350; // Spawn safely away from the exit portal inside the keep
+                    // Spawn 3 random treasures from pool
+                    const pool = ["Golden Chalice", "Crown Jewels", "Royal Scepter", "Ruby Ring", "Golden Candelabra", "Elven Goblet"];
+                    const shuffled = pool.sort(() => 0.5 - Math.random());
+                    castleChests = [
+                        { x: 200, y: 220, collected: false, name: shuffled[0] },
+                        { x: 512, y: 160, collected: false, name: shuffled[1] },
+                        { x: 800, y: 220, collected: false, name: shuffled[2] }
+                    ];
+                    createFloatyText("Welcome to the Castle Keep!", player.x, player.y - 40, "#fbbf24");
+                    return;
+                }
+
+                // 3. Update angry Boar chase AI
+                activeAnimals.forEach(animal => {
+                    if (animal.raged) {
+                        const adx = player.x - animal.x;
+                        const ady = player.y - animal.y;
+                        const adist = Math.hypot(adx, ady);
+                        if (adist > 15) {
+                            animal.x += (adx / adist) * 2.8;
+                            animal.y += (ady / adist) * 2.8;
+                        }
+                        
+                        // Attack cooldown check
+                        if (!animal.attackCooldown) animal.attackCooldown = 0;
+                        animal.attackCooldown--;
+                        if (adist < 35 && animal.attackCooldown <= 0) {
+                            updatePlayerHpOnServer(State.hp - 5);
+                            createFloatyText("-5 HP", player.x, player.y - 50, "#ef4444");
+                            animal.attackCooldown = 60; // 1 second
+                            if (State.hp - 5 <= 0) {
+                                handlePlayerDefeat();
+                            }
+                        }
+                    }
+                    if (animal.damageFlash > 0) animal.damageFlash--;
+                });
+
+            } else if (State.current_map === "dragon_lair") {
+                // 1. Update Dragon movement & attacks
+                if (dragonBoss && dragonBoss.hp > 0) {
+                    dragonBoss.x += dragonBoss.direction * dragonBoss.speed;
+                    if (dragonBoss.x < 150 || dragonBoss.x > 870) {
+                        dragonBoss.direction *= -1;
+                    }
+                    if (dragonBoss.damageFlash > 0) dragonBoss.damageFlash--;
+
+                    // Fireball cooldown
+                    dragonBoss.fireCooldown--;
+                    if (dragonBoss.fireCooldown <= 0) {
+                        const fdx = player.x - dragonBoss.x;
+                        const fdy = player.y - (dragonBoss.y + 35);
+                        const fdist = Math.hypot(fdx, fdy);
+                        dragonProjectiles.push({
+                            x: dragonBoss.x,
+                            y: dragonBoss.y + 35,
+                            vx: (fdx / fdist) * 5,
+                            vy: (fdy / fdist) * 5,
+                            radius: 12
+                        });
+                        dragonBoss.fireCooldown = 90; // 1.5 seconds
+                    }
+                }
+
+                // 2. Projectile physics & collision
+                dragonProjectiles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                });
+                
+                // Overlap check
+                dragonProjectiles.forEach((p, pIdx) => {
+                    const dist = Math.hypot(player.x - p.x, player.y - p.y);
+                    if (dist < p.radius + 20) {
+                        dragonProjectiles.splice(pIdx, 1);
+                        
+                        createFloatyText("-15 HP (Dragon Fire!)", player.x, player.y - 50, "#ef4444");
+                        const newHp = State.hp - 15;
+                        updatePlayerHpOnServer(newHp);
+                        if (newHp <= 0) {
+                            handlePlayerDefeat();
+                        }
+                    }
+                });
+
+                // Clear offscreen projectiles
+                dragonProjectiles = dragonProjectiles.filter(p => p.x >= 0 && p.x <= canvas.width && p.y >= 0 && p.y <= canvas.height);
+
+                // 3. Collecting Diamond
+                if (dragonDiamondDrop) {
+                    const dDist = Math.hypot(player.x - dragonDiamondDrop.x, player.y - dragonDiamondDrop.y);
+                    if (dDist < 30) {
+                        sendLootReward("Diamond", 0);
+                        State.current_map = "world";
+                        player.x = 220;
+                        player.y = 290; // Spawn safely south of the portal location to prevent infinite loops
+                        dragonDiamondDrop = null;
+                        alert("You gathered the Dragon's Diamond! Teleported back to the Sacred Grove. Show it to Captain Aldric.");
+                    }
+                }
+
+                // 4. Overlap with Exit Portal (teleport back to grove)
+                if (Math.hypot(player.x - 512, player.y - 430) < 30) {
+                    State.current_map = "world";
+                    player.x = 220;
+                    player.y = 290; // Spawn safely south of the portal location to prevent infinite loops
+                    createFloatyText("Exited Lair", player.x, player.y - 40, "#60a5fa");
+                }
+
+            } else if (State.current_map === "castle_interior") {
+                // 1. Overlap with Castle Chests
+                castleChests.forEach(chest => {
+                    if (!chest.collected) {
+                        const dist = Math.hypot(player.x - chest.x, player.y - chest.y);
+                        if (dist < 35) {
+                            chest.collected = true;
+                            sendLootReward(chest.name, 0);
+                            createFloatyText(`Looted: ${chest.name}!`, chest.x, chest.y - 20, "#fbbf24");
+                            
+                            if (State.active_quests.side_castle_scavenger && State.active_quests.side_castle_scavenger.status === "in_progress") {
+                                fetch(`${API_URL}/update_quest_progress`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        player_name: State.player_name,
+                                        quest_id: "side_castle_scavenger",
+                                        flag_key: "looted",
+                                        increment: 1
+                                    })
+                                }).then(res => res.json()).then(data => {
+                                    if (data.success) {
+                                        State.active_quests.side_castle_scavenger.flags = data.flags;
+                                        updateHUD();
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+
+                // 2. Overlap with Exit Portal (teleport back to world map)
+                if (Math.hypot(player.x - 512, player.y - 430) < 30) {
+                    State.current_map = "world";
+                    player.x = 800;
+                    player.y = 250; // Spawn safely south of the castle portal location on the road to prevent infinite loops
+                    
+                    fetch(`${API_URL}/reset_castle_gate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ player_name: State.player_name })
+                    }).then(() => {
+                        if (State.active_quests.main_enter_keep) {
+                            State.active_quests.main_enter_keep.status = "in_progress";
+                            State.active_quests.main_enter_keep.step = 2; // Resets back to talking to thorn
+                        }
+                        updateHUD();
+                    });
+                    
+                    alert("You exited the Castle Keep. The gates have locked. Slay the Dragon again to earn another Diamond proof!");
+                }
+            }
+        }
+
+        function renderWorld() {
+            // Check current map context
+            if (State.current_map === "dragon_lair") {
+                // Draw Dragon Lair
+                if (assets.dragon_lair_bg.complete) {
+                    ctx.drawImage(assets.dragon_lair_bg, 0, 0, canvas.width, canvas.height);
+                } else {
+                    ctx.fillStyle = "#292524"; // Charcoal dark bg
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                // Draw Magic exit portal (teleports back to grove)
+                ctx.fillStyle = "rgba(14, 116, 144, 0.4)";
+                ctx.strokeStyle = "rgba(34, 211, 238, 0.8)";
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(512, 430, 25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.fillStyle = "#22d3ee";
+                ctx.font = "bold 9px Inter, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("Exit Portal", 512, 450);
+
+                // Draw Dragon
+                if (dragonBoss && dragonBoss.hp > 0) {
+                    // Flash red if hit
+                    ctx.save();
+                    if (dragonBoss.damageFlash > 0) {
+                        ctx.filter = "brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(5)";
+                    }
+                    if (assets.dragon_sprite.complete) {
+                        ctx.drawImage(assets.dragon_sprite, dragonBoss.x - 75, dragonBoss.y - 75, 150, 150);
+                    } else {
+                        ctx.fillStyle = "#dc2626";
+                        ctx.fillRect(dragonBoss.x - 40, dragonBoss.y - 40, 80, 80);
+                    }
+                    ctx.restore();
+
+                    // Dragon Health Bar
+                    const barWidth = 120;
+                    const barHeight = 8;
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                    ctx.fillRect(dragonBoss.x - barWidth/2, dragonBoss.y - 95, barWidth, barHeight);
+                    const hpPercent = dragonBoss.hp / dragonBoss.max_hp;
+                    ctx.fillStyle = "#ef4444";
+                    ctx.fillRect(dragonBoss.x - barWidth/2, dragonBoss.y - 95, barWidth * hpPercent, barHeight);
+
+                    // Name Tag
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+                    ctx.beginPath();
+                    ctx.roundRect(dragonBoss.x - 60, dragonBoss.y - 115, 120, 16, 4);
+                    ctx.fill();
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 10px Inter, sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(`Red Dragon (HP: ${dragonBoss.hp}/${dragonBoss.max_hp})`, dragonBoss.x, dragonBoss.y - 103);
+                    
+                    // Attack range tooltip if close
+                    const dist = Math.hypot(player.x - dragonBoss.x, player.y - dragonBoss.y);
+                    if (dist < 250 && !State.is_dialogue_active) {
+                        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+                        ctx.strokeStyle = "rgba(239, 68, 68, 0.4)";
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.roundRect(dragonBoss.x - 70, dragonBoss.y + 70, 140, 22, 4);
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.fillStyle = "#ffffff";
+                        ctx.font = "bold 9px Inter, sans-serif";
+                        ctx.fillText("[Space] Attack Dragon", dragonBoss.x, dragonBoss.y + 84);
+                    }
+                }
+
+                // Draw fireballs
+                dragonProjectiles.forEach(p => {
+                    ctx.fillStyle = "#f97316";
+                    ctx.strokeStyle = "#ef4444";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Glow particle core
+                    ctx.fillStyle = "#fde047";
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Draw Diamond Drop
+                if (dragonDiamondDrop) {
+                    if (assets.diamond_icon.complete) {
+                        ctx.drawImage(assets.diamond_icon, dragonDiamondDrop.x - 20, dragonDiamondDrop.y - 20, 40, 40);
+                    } else {
+                        ctx.fillStyle = "#3b82f6";
+                        ctx.beginPath();
+                        ctx.arc(dragonDiamondDrop.x, dragonDiamondDrop.y, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+                    ctx.beginPath();
+                    ctx.roundRect(dragonDiamondDrop.x - 60, dragonDiamondDrop.y - 35, 120, 12, 3);
+                    ctx.fill();
+                    ctx.fillStyle = "#60a5fa";
+                    ctx.font = "bold 8px Inter, sans-serif";
+                    ctx.fillText("Gather Diamond [Walk Over]", dragonDiamondDrop.x, dragonDiamondDrop.y - 26);
+                }
+
+                // Draw player
+                drawPlayerCharacter();
+
+            } else if (State.current_map === "castle_interior") {
+                // Draw Castle Keep Interior
+                if (assets.castle_interior_bg.complete) {
+                    ctx.drawImage(assets.castle_interior_bg, 0, 0, canvas.width, canvas.height);
+                } else {
+                    ctx.fillStyle = "#1e293b"; // Slate blue bg
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                // Draw Exit Portal inside Castle Keep
+                const exitPulse = (Date.now() / 300) % (Math.PI * 2);
+                const radius = 25 + Math.sin(exitPulse) * 4;
+                ctx.fillStyle = "rgba(234, 179, 8, 0.4)"; // Golden/yellow translucent
+                ctx.strokeStyle = "rgba(253, 224, 71, 0.85)"; // Yellow glow
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(512, 430, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner core
+                ctx.fillStyle = "rgba(254, 240, 138, 0.6)";
+                ctx.beginPath();
+                ctx.arc(512, 430, radius * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = "#fbbf24";
+                ctx.font = "bold 9px Inter, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("Exit Portal", 512, 470);
+
+                // Draw treasures
+                castleChests.forEach(chest => {
+                    if (!chest.collected) {
+                        if (assets.castle_loot_icon.complete) {
+                            ctx.drawImage(assets.castle_loot_icon, chest.x - 20, chest.y - 20, 40, 40);
+                        } else {
+                            ctx.fillStyle = "#fbbf24";
+                            ctx.fillRect(chest.x - 15, chest.y - 15, 30, 30);
+                        }
+                        
+                        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                        ctx.beginPath();
+                        ctx.roundRect(chest.x - 50, chest.y - 35, 100, 12, 3);
+                        ctx.fill();
+                        ctx.fillStyle = "#fbbf24";
+                        ctx.font = "bold 8px Inter, sans-serif";
+                        ctx.fillText("Throne Treasure [Loot]", chest.x, chest.y - 26);
+                    }
+                });
+
+                // Draw player
+                drawPlayerCharacter();
+
+            } else {
+                // Draw normal world map (4 quadrants and roads)
+                const isQuestCompleted = State.active_quests.main_enter_keep && State.active_quests.main_enter_keep.status.toLowerCase() === "completed";
+                // 1. Base dark ground
+                ctx.fillStyle = "#0c101b";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 2. Quadrants
+                if (assets.backgrounds.grove.complete) {
+                    ctx.drawImage(assets.backgrounds.grove, 0, 0, 490, 230);
+                } else {
+                    ctx.fillStyle = "#064e3b";
+                    ctx.fillRect(0, 0, 490, 230);
+                }
+
+                if (assets.backgrounds.market.complete) {
+                    ctx.drawImage(assets.backgrounds.market, 0, 290, 490, 190);
+                } else {
+                    ctx.fillStyle = "#111827";
+                    ctx.fillRect(0, 290, 490, 190);
+                }
+
+                if (assets.backgrounds.castle.complete) {
+                    ctx.drawImage(assets.backgrounds.castle, 550, 0, 474, 230);
+                } else {
+                    ctx.fillStyle = "#1e293b";
+                    ctx.fillRect(550, 0, 474, 230);
+                }
+
+                if (assets.backgrounds.tavern.complete) {
+                    ctx.drawImage(assets.backgrounds.tavern, 550, 290, 474, 190);
+                } else {
+                    ctx.fillStyle = "#1d3557";
+                    ctx.fillRect(550, 290, 474, 190);
+                }
+
+                // 3. Roads
+                ctx.fillStyle = "#1e293b"; // Path main color
+                ctx.fillRect(0, 230, canvas.width, 60); // Horiz path
+                ctx.fillRect(490, 0, 60, canvas.height); // Vert path
+
+                // Path Borders
+                ctx.fillStyle = "#334155";
+                ctx.fillRect(0, 227, canvas.width, 3);
+                ctx.fillRect(0, 290, canvas.width, 3);
+                ctx.fillRect(487, 0, 3, canvas.height);
+                ctx.fillRect(550, 0, 3, canvas.height);
+
+                // Center Ring Crossroads
+                ctx.fillStyle = "#2d3748";
+                ctx.beginPath();
+                ctx.arc(520, 260, 50, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#4a5568";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Crossroads Medallion
+                ctx.fillStyle = "#f59e0b";
+                ctx.beginPath();
+                ctx.arc(520, 260, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 4. Magic Portal drawing in Grove
+                if (magicPortal) {
+                    const radius = magicPortal.radius + Math.sin(magicPortal.pulse) * 4;
+                    ctx.fillStyle = "rgba(6, 182, 212, 0.4)";
+                    ctx.strokeStyle = "rgba(34, 211, 238, 0.85)";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(magicPortal.x, magicPortal.y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Inner vortex core
+                    ctx.fillStyle = "rgba(165, 243, 252, 0.6)";
+                    ctx.beginPath();
+                    ctx.arc(magicPortal.x, magicPortal.y, radius * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Portal Tooltip
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+                    ctx.beginPath();
+                    ctx.roundRect(magicPortal.x - 70, magicPortal.y - 45, 140, 14, 3);
+                    ctx.fill();
+                    ctx.fillStyle = "#22d3ee";
+                    ctx.font = "bold 8px Inter, sans-serif";
+                    ctx.fillText("Dragon Lair Portal [Walk In]", magicPortal.x, magicPortal.y - 35);
+                }
+
+                // 4.5. Castle Entrance Portal drawing near Captain Aldric
+                if (isQuestCompleted) {
+                    const gatePulse = (Date.now() / 300) % (Math.PI * 2);
+                    const radius = 25 + Math.sin(gatePulse) * 4;
+                    ctx.fillStyle = "rgba(234, 179, 8, 0.4)"; // Golden/yellow translucent
+                    ctx.strokeStyle = "rgba(253, 224, 71, 0.85)"; // Yellow glow
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(800, 50, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Inner core
+                    ctx.fillStyle = "rgba(254, 240, 138, 0.6)";
+                    ctx.beginPath();
+                    ctx.arc(800, 50, radius * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Portal Tooltip
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+                    ctx.beginPath();
+                    ctx.roundRect(800 - 65, 50 - 45, 130, 14, 3);
+                    ctx.fill();
+                    ctx.fillStyle = "#fbbf24";
+                    ctx.font = "bold 8px Inter, sans-serif";
+                    ctx.fillText("Castle Keep Portal [Walk In]", 800, 50 - 35);
+                }
+
+                // 5. Draw NPCs
+                let proximityNpc = null;
+                for (const name in assets.npcs) {
+                    const npc = assets.npcs[name];
+                    
+                    if (npc.full.complete) {
+                        ctx.drawImage(npc.full, npc.x - 30, npc.y - 60, 60, 100);
+                    } else {
+                        ctx.fillStyle = "#f59e0b";
+                        ctx.fillRect(npc.x - 15, npc.y - 45, 30, 45);
+                    }
+
+                    // Press E tooltip
+                    const dx = player.x - npc.x;
+                    const dy = player.y - npc.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < 70) {
+                        proximityNpc = name;
+                        if (!State.is_dialogue_active) {
+                            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                            ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.roundRect(npc.x - 70, npc.y - 100, 140, 30, 6);
+                            ctx.fill();
+                            ctx.stroke();
+
+                            ctx.fillStyle = "white";
+                            ctx.font = "bold 12px Inter, sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillText("[E] Talk to " + name.split(" ")[0], npc.x, npc.y - 80);
+                        }
+                    }
+                }
+
+                // 6. Draw active wild boars
+                activeAnimals.forEach(animal => {
+                    if (assets.wild_boar.complete) {
+                        ctx.save();
+                        // Flash red if hit
+                        if (animal.damageFlash > 0) {
+                            ctx.filter = "brightness(1.5) sepia(1) hue-rotate(-50deg) saturate(5)";
+                        }
+                        ctx.drawImage(assets.wild_boar, animal.x - 25, animal.y - 25, 50, 50);
+                        ctx.restore();
+                    } else {
+                        ctx.fillStyle = "#b45309";
+                        ctx.fillRect(animal.x - 20, animal.y - 15, 40, 30);
+                    }
+
+                    // Boar HP bar
+                    const barWidth = 40;
+                    const barHeight = 4;
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                    ctx.fillRect(animal.x - barWidth/2, animal.y - 35, barWidth, barHeight);
+                    const hpPercent = animal.hp / animal.maxHp;
+                    ctx.fillStyle = "#ef4444";
+                    ctx.fillRect(animal.x - barWidth/2, animal.y - 35, barWidth * hpPercent, barHeight);
+
+                    // Name Tag
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                    ctx.beginPath();
+                    ctx.roundRect(animal.x - 55, animal.y - 50, 110, 12, 3);
+                    ctx.fill();
+                    ctx.fillStyle = animal.raged ? "#f87171" : "#f3f4f6";
+                    ctx.font = animal.raged ? "bold 8px Inter, sans-serif" : "8px Inter, sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(animal.raged ? "Enraged Boar!" : `Wild Boar (HP: ${animal.hp}/${animal.maxHp})`, animal.x, animal.y - 41);
+
+                    // Hunt prompt
+                    const dx = player.x - animal.x;
+                    const dy = player.y - animal.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 65 && !State.is_dialogue_active) {
+                        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+                        ctx.strokeStyle = "rgba(239, 68, 68, 0.3)";
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.roundRect(animal.x - 60, animal.y + 30, 120, 22, 4);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        ctx.fillStyle = "#ffffff";
+                        ctx.font = "bold 9px Inter, sans-serif";
+                        ctx.textAlign = "center";
+                        ctx.fillText("[Space] Hunt Boar", animal.x, animal.y + 44);
+                    }
+                });
+
+                // 7. Draw player
+                drawPlayerCharacter();
+            }
+
+            // 8. Draw Slash animation
+            drawSlashAnimation();
+
+            // 9. Draw Floaty texts
+            drawFloatyTexts();
+        }
+
+        // Draw helpers to keep renderWorld clean
+        function drawPlayerCharacter() {
+            if (assets.player.full.complete) {
+                ctx.drawImage(assets.player.full, player.x - 25, player.y - 55, 50, 90);
+            } else {
+                ctx.fillStyle = "#3b82f6";
+                ctx.fillRect(player.x - 15, player.y - 45, 30, 45);
+            }
+        }
+
+        function drawSlashAnimation() {
+            if (slashAnimation.active) {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                
+                let startAngle = 0;
+                let endAngle = 0;
+                let slashRadius = 40;
+                let slashX = slashAnimation.x;
+                let slashY = slashAnimation.y - 15;
+
+                if (slashAnimation.direction === "right") {
+                    startAngle = -Math.PI / 3;
+                    endAngle = Math.PI / 3;
+                    slashX += 15;
+                } else if (slashAnimation.direction === "left") {
+                    startAngle = 2 * Math.PI / 3;
+                    endAngle = 4 * Math.PI / 3;
+                    slashX -= 15;
+                } else if (slashAnimation.direction === "up") {
+                    startAngle = 7 * Math.PI / 6;
+                    endAngle = 11 * Math.PI / 6;
+                    slashY -= 15;
+                } else { // down
+                    startAngle = Math.PI / 6;
+                    endAngle = 5 * Math.PI / 6;
+                    slashY += 15;
+                }
+
+                ctx.arc(slashX, slashY, slashRadius, startAngle, endAngle);
+                ctx.stroke();
+                
+                slashAnimation.frame++;
+                if (slashAnimation.frame > 8) {
+                    slashAnimation.active = false;
+                }
+            }
+        }
+
+        function drawFloatyTexts() {
+            floatyTexts.forEach(ft => {
+                ctx.fillStyle = ft.color;
+                ctx.font = "bold 13px Inter, sans-serif";
+                ctx.textAlign = "center";
+                ctx.globalAlpha = Math.max(0, ft.life / 40);
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.globalAlpha = 1.0;
+            });
+        }
+    </script>
+</body>
+</html>
