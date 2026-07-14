@@ -16,11 +16,29 @@ from quest_engine import QuestEngine
 
 INTENT_PATTERNS = {
     "buy_item": {
-        "keywords": ["buy", "purchase", "want to buy", "how much", "i want", "i need", "i'll take", "give me", "sell me"],
+        "keywords": [
+            # Explicit buy words
+            "buy", "purchase", "acquire",
+            # Natural phrases Gemini generates as option text
+            "i'd like to buy", "i would like to buy", "i want to buy",
+            "i'll take", "i'll buy", "i'd take", "give me",
+            "can i get", "could i get", "may i have", "may i purchase",
+            "how much for", "how much does", "what's the price",
+            "i need a", "i need the", "i want the", "i want a",
+            "sell me", "i'll have", "let me buy", "let me get",
+            "interested in buying", "interested in purchasing",
+            "i'd like the", "i would like the", "i'll take the",
+            "i wish to buy", "i wish to purchase",
+        ],
         "priority": 10
     },
     "sell_item": {
-        "keywords": ["sell", "trade away", "get rid of", "i want to sell"],
+        "keywords": [
+            "sell", "trade away", "get rid of", "i want to sell",
+            "i'd like to sell", "i have something to sell", "selling",
+            "i want to trade", "offload", "unload", "i'll sell",
+            "buy this from me", "take this off my hands",
+        ],
         "priority": 9
     },
     "accept_quest": {
@@ -60,11 +78,13 @@ INTENT_PATTERNS = {
         "priority": 0
     }
 }
-# Item name extraction patterns
+# Item name extraction patterns — ordered longest-first to avoid partial matches
 ITEM_NAMES = [
-    "frostbane katana", "frostbane", "katana",
-    "steel sword", "sword",
-    "hunting knife", "knife",
+    "frostbane katana", "frostbane",
+    "diamond greatsword", "greatsword",
+    "shadowflame dagger", "dagger",
+    "steel sword",
+    "hunting knife",
     "health potion", "potion",
     "iron shield", "shield",
     "shadow cloak", "cloak",
@@ -78,20 +98,21 @@ ITEM_NAMES = [
     "ruby ring", "ring",
     "golden candelabra", "candelabra",
     "elven goblet", "goblet",
-    "diamond greatsword", "greatsword"
+    "katana", "sword", "knife",
 ]
 
 
 def detect_intent(player_input: str) -> dict:
-    """Detect player intent from their message text."""
+    """Detect player intent from their message text.
+    Handles both explicit buy/sell keywords and natural LLM-generated phrases."""
     text = player_input.lower().strip()
-    
+
     if not text:
         return {"intent": "greeting", "item": None, "confidence": 1.0}
-    
+
     best_intent = "general"
     best_priority = -1
-    
+
     for intent_name, config in INTENT_PATTERNS.items():
         for keyword in config["keywords"]:
             if keyword in text:
@@ -99,7 +120,7 @@ def detect_intent(player_input: str) -> dict:
                     best_intent = intent_name
                     best_priority = config["priority"]
                     break
-    
+
     # Extract item name if relevant
     detected_item = None
     if best_intent in ("buy_item", "sell_item", "ask_inventory"):
@@ -107,7 +128,18 @@ def detect_intent(player_input: str) -> dict:
             if item_name in text:
                 detected_item = item_name
                 break
-    
+
+    # SMART FALLBACK: if no explicit buy keyword was found but the player
+    # mentions a specific item name while talking (e.g. LLM option like
+    # "I'm looking for a Steel Sword"), treat it as a buy intent so the
+    # game logic can validate it rather than letting the LLM invent an outcome.
+    if best_intent == "general" and detected_item is None:
+        for item_name in ITEM_NAMES:
+            if item_name in text:
+                detected_item = item_name
+                best_intent = "buy_item"
+                break
+
     return {
         "intent": best_intent,
         "item": detected_item,
@@ -124,8 +156,11 @@ class GameLogic:
 
     # ── Shop / Purchase ────────────────────────────────────────────────
     @staticmethod
-    def validate_purchase(player_name: str, item_keyword: str, npc_name: str) -> dict:
-        """Check if player can buy an item. Returns result for LLM context."""
+    def validate_purchase(player_name: str, item_keyword: str, npc_name: str, quantity: int = 1) -> dict:
+        """Check if player can buy an item. Returns result for LLM context.
+        Supports quantity > 1 (e.g. buying multiple health potions).
+        Enforces one-purchase-per-user limit for Frostbane Katana.
+        Other items have unlimited stock (no stock decrement)."""
         with sqlite3.connect(DB_PATH) as conn:
             c = conn.cursor()
             
@@ -155,26 +190,51 @@ class GameLogic:
             
             item_id, item_name, price, stock, description, category = shop_item
             
-            if stock <= 0:
-                return {
-                    "success": False,
-                    "reason": "out_of_stock",
-                    "message": f"{item_name} is out of stock.",
-                    "item_name": item_name,
-                    "player_gold": player_gold,
-                    "inventory_changes": {},
-                    "gold_change": 0
-                }
+            # Unique one-time purchase rule for Frostbane Katana per user
+            if item_id == "frostbane_katana":
+                if quantity > 1:
+                    return {
+                        "success": False,
+                        "reason": "quantity_limit_exceeded",
+                        "message": "You can only purchase one unique Frostbane Katana.",
+                        "item_name": item_name,
+                        "player_gold": player_gold,
+                        "inventory_changes": {},
+                        "gold_change": 0
+                    }
+                
+                # Check if already in inventory
+                c.execute("SELECT quantity FROM Inventory WHERE player_name = ? AND item_id = 'frostbane_katana'", (player_name,))
+                inv_row = c.fetchone()
+                has_katana = inv_row and inv_row[0] > 0
+                
+                # Check if quest completed
+                c.execute("SELECT status FROM QuestState WHERE player_name = ? AND quest_id = 'main_frostbane'", (player_name,))
+                quest_row = c.fetchone()
+                has_quest_completed = quest_row and quest_row[0] == "completed"
+                
+                if has_katana or has_quest_completed:
+                    return {
+                        "success": False,
+                        "reason": "already_purchased",
+                        "message": "You have already purchased the unique Frostbane Katana once.",
+                        "item_name": item_name,
+                        "player_gold": player_gold,
+                        "inventory_changes": {},
+                        "gold_change": 0
+                    }
             
-            if player_gold < price:
+            total_price = price * quantity
+            
+            if player_gold < total_price:
                 return {
                     "success": False,
                     "reason": "insufficient_gold",
-                    "message": f"{item_name} costs {price} gold but player only has {player_gold} gold.",
+                    "message": f"{quantity}x {item_name} costs {total_price} gold but player only has {player_gold} gold.",
                     "item_name": item_name,
-                    "price": price,
+                    "price": total_price,
                     "player_gold": player_gold,
-                    "shortfall": price - player_gold,
+                    "shortfall": total_price - player_gold,
                     "inventory_changes": {},
                     "gold_change": 0
                 }
@@ -186,14 +246,14 @@ class GameLogic:
             elif item_id == "hunting_knife":
                 durability = 3
 
-            c.execute("UPDATE Players SET gold = gold - ? WHERE player_name = ?", (price, player_name))
+            c.execute("UPDATE Players SET gold = gold - ? WHERE player_name = ?", (total_price, player_name))
             c.execute("""
-                INSERT INTO Inventory (player_name, item_id, quantity, durability) VALUES (?, ?, 1, ?)
+                INSERT INTO Inventory (player_name, item_id, quantity, durability) VALUES (?, ?, ?, ?)
                 ON CONFLICT(player_name, item_id) DO UPDATE SET 
-                    quantity = quantity + 1,
+                    quantity = quantity + excluded.quantity,
                     durability = MAX(durability, excluded.durability)
-            """, (player_name, item_id, durability))
-            c.execute("UPDATE ShopItems SET stock = stock - 1 WHERE npc_name = ? AND item_id = ?", (npc_name, item_id))
+            """, (player_name, item_id, quantity, durability))
+            # Note: stock is unlimited, so we DO NOT decrement stock in ShopItems
             conn.commit()
             
             # Check quest progression if Frostbane Katana was bought
@@ -212,12 +272,12 @@ class GameLogic:
             return {
                 "success": True,
                 "reason": "purchase_complete",
-                "message": f"Player bought {item_name} for {price} gold. Remaining gold: {player_gold - price}.",
+                "message": f"Player bought {quantity}x {item_name} for {total_price} gold. Remaining gold: {player_gold - total_price}.",
                 "item_name": item_name,
-                "price": price,
-                "player_gold": player_gold - price,
-                "inventory_changes": {"gold": -price, "items_added": [item_name], "items_removed": []},
-                "gold_change": -price,
+                "price": total_price,
+                "player_gold": player_gold - total_price,
+                "inventory_changes": {"gold": -total_price, "items_added": [item_name] * quantity, "items_removed": []},
+                "gold_change": -total_price,
                 "quest_updates": quest_updates
             }
 
@@ -1067,7 +1127,32 @@ class GameLogic:
             
         # ── Handle each intent ──────────────────────────────────────
         elif intent["intent"] == "buy_item" and intent["item"]:
-            action_result = GameLogic.validate_purchase(player_name, intent["item"], npc_name)
+            # Parse quantity from input string (e.g. "buy 5 health potions", "potion x 3")
+            # Strip parenthetical prices first to avoid false matches (e.g. "(10 Gold)")
+            clean_input = re.sub(r'\(\s*\d+\s*[Gg]old\s*\)', '', player_input)
+            quantity = 1
+            
+            # Match formats like "5 potions", "5 steel swords", "3x katana"
+            qty_match = re.search(r'\b(\d+)\s*(?:x|qty|quantity)?\s*(?:[a-zA-Z\s]*' + re.escape(intent["item"]) + r'|' + re.escape(intent["item"]) + r')', clean_input, re.IGNORECASE)
+            if not qty_match:
+                # Match formats like "potion x 5", "potions 5"
+                qty_match = re.search(re.escape(intent["item"]) + r'\s*(?:s)?\s*(?:x|qty|quantity)?\s*[:\-\s]*\b(\d+)\b', clean_input, re.IGNORECASE)
+            
+            if qty_match:
+                try:
+                    quantity = max(1, int(qty_match.group(1)))
+                except ValueError:
+                    quantity = 1
+            else:
+                # Fallback to first standalone number in input
+                first_num = re.search(r'\b(\d+)\b', clean_input)
+                if first_num:
+                    try:
+                        quantity = max(1, int(first_num.group(1)))
+                    except ValueError:
+                        quantity = 1
+            
+            action_result = GameLogic.validate_purchase(player_name, intent["item"], npc_name, quantity)
             inventory_changes = action_result.get("inventory_changes", {})
             quest_updates = action_result.get("quest_updates", {})
             

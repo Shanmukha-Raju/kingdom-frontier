@@ -83,10 +83,16 @@ def initialize_database():
             player_name TEXT,
             item_id TEXT,
             quantity INTEGER DEFAULT 1,
+            durability INTEGER DEFAULT -1,
             PRIMARY KEY(player_name, item_id),
             FOREIGN KEY(player_name) REFERENCES Players(player_name),
             FOREIGN KEY(item_id) REFERENCES Items(item_id)
         )""")
+        # Add durability column if upgrading an existing database
+        try:
+            c.execute("ALTER TABLE Inventory ADD COLUMN durability INTEGER DEFAULT -1")
+        except Exception:
+            pass  # Column already exists
 
         c.execute("""
         CREATE TABLE IF NOT EXISTS ShopItems (
@@ -188,7 +194,9 @@ def initialize_database():
             ("Shade", "health_potion", 10, 15, 5),  # Higher price in black market
         ]
         for si in shop_items:
-            c.execute("INSERT OR IGNORE INTO ShopItems VALUES (?,?,?,?,?)", si)
+            # INSERT OR REPLACE restores stock to seed value every startup
+            # so items like Frostbane Katana never stay permanently out-of-stock
+            c.execute("INSERT OR REPLACE INTO ShopItems VALUES (?,?,?,?,?)", si)
 
         # ═══════════════════════════════════════════════════════════════
         # SEED: Initial NPC greetings

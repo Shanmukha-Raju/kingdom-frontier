@@ -1834,11 +1834,23 @@
         }
 
         // ─── CANVAS GAME LOOP & RENDERING ───
-        function gameLoop() {
-            updatePlayerPosition();
-            updateFloatyTexts();
-            renderWorld();
+        let lastFrameTime = 0;
+        const targetFpsInterval = 1000 / 60; // 16.67ms (60 FPS)
+
+        function gameLoop(currentTime) {
             requestAnimationFrame(gameLoop);
+            
+            if (!currentTime) currentTime = performance.now();
+            const elapsed = currentTime - lastFrameTime;
+            
+            if (elapsed >= targetFpsInterval) {
+                // Adjust lastFrameTime for potential lag spikes
+                lastFrameTime = currentTime - (elapsed % targetFpsInterval);
+                
+                updatePlayerPosition();
+                updateFloatyTexts();
+                renderWorld();
+            }
         }
 
         function updateFloatyTexts() {

@@ -259,92 +259,61 @@ def parse_llm_response(raw_output: str) -> dict:
     }
 
 
-def is_critical_action_option(opt: str) -> bool:
-    opt_lower = opt.lower()
-    # Check if the option is an action that moves the game/quest/trade state forward
-    action_keywords = [
-        "buy the", "buy a", "sell something", "sell this", "sell you",
-        "forge me", "here is the", "may i enter", "what do i need to enter",
-        "seek out elder thorn", "suggested i meet", "tasks for me", "job for me",
-        "hunted the", "scavenged", "kills:", "looted:", "still working", "still searching",
-        "slain the", "killed the"
-    ]
-    return any(kw in opt_lower for kw in action_keywords)
-
-
-def clean_player_options(options: list[str], fallback_options: list[str]) -> list[str]:
-    """Ensure we return exactly 4 unique dialogue options, with a goodbye option at the end.
-    Prioritize programmatic action options from fallback_options so they are always clickable."""
+def clean_player_options(llm_options: list[str], fallback_options: list[str]) -> list[str]:
+    """Return exactly 4 dialogue options.
+    PRIORITY: LLM-generated options come FIRST. 
+    Game logic fallback options are ONLY used when LLM fails or returns fewer than 3 options."""
     import re
-    cleaned = []
-    seen = set()
-    
     goodbye_words = ["farewell", "goodbye", "bye", "leave", "exit", "say goodbye", "depart", "head out"]
-    
-    # 1. First, prioritize all CRITICAL programmatic action options from fallback_options
-    # excluding generic goodbye / farewell
-    for opt in (fallback_options or []):
-        opt_str = str(opt).strip('\'" ').strip()
-        if opt_str and is_critical_action_option(opt_str):
-            is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
-            if not is_goodbye and opt_str not in seen:
-                cleaned.append(opt_str)
-                seen.add(opt_str)
-                
-    # 2. Next, append LLM-generated options
-    for opt in (options or []):
-        opt_str = str(opt).strip('\'" ').strip()
-        if opt_str:
-            opt_str = re.sub(r'^\d+[\.\)\-\s]+', '', opt_str).strip()
-            is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
-            if not is_goodbye and opt_str not in seen:
-                cleaned.append(opt_str)
-                seen.add(opt_str)
-                if len(cleaned) >= 3:
-                    break
 
-    # 3. If we still need more options to reach 3, append the remaining (non-critical) fallback_options
-    if len(cleaned) < 3:
-        for opt in (fallback_options or []):
-            opt_str = str(opt).strip('\'" ').strip()
-            if opt_str and not is_critical_action_option(opt_str):
-                is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
-                if not is_goodbye and opt_str not in seen:
-                    cleaned.append(opt_str)
-                    seen.add(opt_str)
-                    if len(cleaned) == 3:
-                        break
+    def strip_opt(opt):
+        s = str(opt).strip('\'"  ').strip()
+        s = re.sub(r'^\d+[\.\)\-\s]+', '', s).strip()
+        return s
 
-    # 4. If we still need more options to reach 3, pad from generic fallbacks
-    generic_fallbacks = ["Tell me more.", "What else?", "I see."]
-    if len(cleaned) < 3:
-        for opt in generic_fallbacks:
+    def is_goodbye(opt):
+        return any(w in opt.lower() for w in goodbye_words)
+
+    # Separate goodbye options from regular options
+    llm_main = [strip_opt(o) for o in (llm_options or []) if strip_opt(o) and not is_goodbye(strip_opt(o))]
+    llm_bye = [strip_opt(o) for o in (llm_options or []) if strip_opt(o) and is_goodbye(strip_opt(o))]
+    fb_main = [strip_opt(o) for o in (fallback_options or []) if strip_opt(o) and not is_goodbye(strip_opt(o))]
+    fb_bye = [strip_opt(o) for o in (fallback_options or []) if strip_opt(o) and is_goodbye(strip_opt(o))]
+
+    # Build the 3 non-goodbye options: LLM options first, fallback only if not enough
+    chosen = []
+    seen = set()
+    for opt in llm_main:
+        if opt not in seen:
+            chosen.append(opt)
+            seen.add(opt)
+        if len(chosen) >= 3:
+            break
+
+    # If LLM didn't give enough, fill with fallback options
+    if len(chosen) < 3:
+        for opt in fb_main:
             if opt not in seen:
-                cleaned.append(opt)
+                chosen.append(opt)
                 seen.add(opt)
-                if len(cleaned) == 3:
-                    break
-                    
-    # Keep exactly the first 3 options
-    cleaned = cleaned[:3]
-    
-    # 5. Find the best goodbye option
-    goodbye_opt = "Farewell."
-    # Check if fallback_options had a custom goodbye
-    for opt in (fallback_options or []):
-        opt_str = str(opt).strip()
-        if any(w in opt_str.lower() for w in goodbye_words):
-            goodbye_opt = opt_str
+            if len(chosen) >= 3:
+                break
+
+    # Pad with generic options if still not enough
+    for generic in ["Tell me more.", "What else is there?", "I see."]:
+        if len(chosen) >= 3:
             break
-    # Or check if LLM had a custom goodbye
-    for opt in (options or []):
-        opt_str = str(opt).strip()
-        if any(w in opt_str.lower() for w in goodbye_words):
-            goodbye_opt = opt_str
-            break
-            
-    cleaned.append(goodbye_opt)
-    return cleaned
+        if generic not in seen:
+            chosen.append(generic)
+            seen.add(generic)
+
+    chosen = chosen[:3]
+
+    # Pick the goodbye option: prefer LLM's, then fallback's, then generic
+    goodbye_opt = (llm_bye + fb_bye + ["Farewell."])[0]
+
+    chosen.append(goodbye_opt)
+    return chosen
 
 
 
