@@ -10,7 +10,7 @@ faiss-cpu
 uvicorn
 langchain-huggingface
 transformers
-torch==2.2.2+cpu
+torch==2.12.0+cpu
 sentence-transformers
 accelerate
 google-genai
