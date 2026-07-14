@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi[all]
 python-dotenv
 langchain
@@ -9,7 +10,7 @@ faiss-cpu
 uvicorn
 langchain-huggingface
 transformers
-torch
+torch==2.2.2+cpu
 sentence-transformers
 accelerate
 google-genai
