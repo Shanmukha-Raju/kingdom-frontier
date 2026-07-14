@@ -1319,6 +1319,19 @@ async def root():
         return HTMLResponse(content=f"<h3>Error loading page: {str(e)}</h3>", status_code=500)
 
 
+@app.get("/demo", response_class=HTMLResponse)
+async def serve_demo():
+    demo_file = os.path.join("api", "demo.html")
+    if not os.path.exists(demo_file):
+        demo_file = "demo.html"
+
+    try:
+        with open(demo_file, "r", encoding="utf-8") as file:
+            return HTMLResponse(content=file.read(), status_code=200)
+    except Exception as e:
+        return HTMLResponse(content=f"<h3>Error loading demo page: {str(e)}</h3>", status_code=500)
+
+
 # ─── Delete Player Account ────────────────────────────────────────────
 
 class DeletePlayerRequest(BaseModel):
