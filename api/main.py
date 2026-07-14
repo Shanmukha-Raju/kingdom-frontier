@@ -259,6 +259,19 @@ def parse_llm_response(raw_output: str) -> dict:
     }
 
 
+def is_critical_action_option(opt: str) -> bool:
+    opt_lower = opt.lower()
+    # Check if the option is an action that moves the game/quest/trade state forward
+    action_keywords = [
+        "buy the", "buy a", "sell something", "sell this", "sell you",
+        "forge me", "here is the", "may i enter", "what do i need to enter",
+        "seek out elder thorn", "suggested i meet", "tasks for me", "job for me",
+        "hunted the", "scavenged", "kills:", "looted:", "still working", "still searching",
+        "slain the", "killed the"
+    ]
+    return any(kw in opt_lower for kw in action_keywords)
+
+
 def clean_player_options(options: list[str], fallback_options: list[str]) -> list[str]:
     """Ensure we return exactly 4 unique dialogue options, with a goodbye option at the end.
     Prioritize programmatic action options from fallback_options so they are always clickable."""
@@ -268,11 +281,11 @@ def clean_player_options(options: list[str], fallback_options: list[str]) -> lis
     
     goodbye_words = ["farewell", "goodbye", "bye", "leave", "exit", "say goodbye", "depart", "head out"]
     
-    # 1. First, prioritize all options from fallback_options (programmatic options)
+    # 1. First, prioritize all CRITICAL programmatic action options from fallback_options
     # excluding generic goodbye / farewell
     for opt in (fallback_options or []):
         opt_str = str(opt).strip('\'" ').strip()
-        if opt_str:
+        if opt_str and is_critical_action_option(opt_str):
             is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
             if not is_goodbye and opt_str not in seen:
                 cleaned.append(opt_str)
@@ -290,7 +303,19 @@ def clean_player_options(options: list[str], fallback_options: list[str]) -> lis
                 if len(cleaned) >= 3:
                     break
 
-    # 3. If we still need more options to reach 3 (leaving the 4th for goodbye), pad from generic fallbacks
+    # 3. If we still need more options to reach 3, append the remaining (non-critical) fallback_options
+    if len(cleaned) < 3:
+        for opt in (fallback_options or []):
+            opt_str = str(opt).strip('\'" ').strip()
+            if opt_str and not is_critical_action_option(opt_str):
+                is_goodbye = any(w in opt_str.lower() for w in goodbye_words)
+                if not is_goodbye and opt_str not in seen:
+                    cleaned.append(opt_str)
+                    seen.add(opt_str)
+                    if len(cleaned) == 3:
+                        break
+
+    # 4. If we still need more options to reach 3, pad from generic fallbacks
     generic_fallbacks = ["Tell me more.", "What else?", "I see."]
     if len(cleaned) < 3:
         for opt in generic_fallbacks:
@@ -303,7 +328,7 @@ def clean_player_options(options: list[str], fallback_options: list[str]) -> lis
     # Keep exactly the first 3 options
     cleaned = cleaned[:3]
     
-    # 4. Find the best goodbye option
+    # 5. Find the best goodbye option
     goodbye_opt = "Farewell."
     # Check if fallback_options had a custom goodbye
     for opt in (fallback_options or []):

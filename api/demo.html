@@ -1454,27 +1454,41 @@
                     State.active_npc = null;
                     State.is_dialogue_active = false;
 
-                    // Hide confirm overlay
+                    // Reset active gameplay elements
+                    activeAnimals = [];
+                    floatyTexts = [];
+                    player.x = 512;
+                    player.y = 280;
+
+                    // Hide confirm overlay immediately
                     document.getElementById("delete-confirm-overlay").style.display = "none";
 
-                    // Show success toast
-                    showToast("Account permanently deleted. Starting fresh...", "error");
+                    // Re-fetch players list (so the deleted player is removed from client cache)
+                    await fetchPlayersList();
 
-                    // Return to welcome screen after brief delay
+                    // Reset login username input & starting button class group
+                    const usernameInput = document.getElementById("username");
+                    if (usernameInput) {
+                        usernameInput.value = "";
+                    }
+                    checkUserType();
+
+                    // Transition viewports immediately
+                    document.getElementById("game-container").style.opacity = 0;
+                    document.getElementById("login-overlay").style.display = "flex";
                     setTimeout(() => {
-                        document.getElementById("game-container").style.display = "none";
-                        document.getElementById("welcome-screen").style.display = "flex";
-                        document.getElementById("welcome-screen").style.opacity = "1";
-                        document.getElementById("name-input").value = "";
-                        document.getElementById("welcome-status").textContent = "";
-                    }, 1800);
+                        document.getElementById("login-overlay").style.opacity = 1;
+                        const loginErr = document.getElementById("login-error");
+                        if (loginErr) loginErr.innerText = "";
+                    }, 50);
                 } else {
-                    showToast(data.message || "Failed to delete account.", "error");
+                    alert(data.message || "Failed to delete account.");
                     btn.textContent = "Yes, Delete Everything";
                     btn.disabled = false;
                 }
             } catch (err) {
-                showToast("Network error. Could not delete account.", "error");
+                console.error("Could not delete account", err);
+                alert("Network error. Could not delete account.");
                 btn.textContent = "Yes, Delete Everything";
                 btn.disabled = false;
             }
