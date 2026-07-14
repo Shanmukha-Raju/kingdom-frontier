@@ -728,10 +728,20 @@
     </div>
 
     <script>
-        // Dynamically resolve API URL depending on deployment host or local file loading
-        const API_URL = window.location.origin && window.location.origin.startsWith("http")
-            ? window.location.origin
-            : "http://127.0.0.1:8001";
+        // --- Backend Connection Configuration ---
+        // 1. You can pass the backend URL in the browser address bar like: /demo.html?backend=https://your-backend.railway.app
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramBackend = urlParams.get('backend');
+
+        // 2. Or replace this placeholder with your deployed backend URL:
+        const PRODUCTION_BACKEND_URL = "https://your-deployed-backend-url.railway.app"; 
+
+        // 3. Resolve the actual API URL based on environment
+        const API_URL = paramBackend 
+            ? paramBackend 
+            : (window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") || window.location.origin.startsWith("file")
+                ? "http://127.0.0.1:8001"
+                : PRODUCTION_BACKEND_URL);
 
         // Helper to remove white/grey grid square background from generated sprites
         function makeImageTransparent(img, threshold = 130) {
