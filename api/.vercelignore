@@ -1,0 +1,8 @@
+*.py
+*.pyc
+requirements.txt
+*.db
+__pycache__/
+data/
+venv/
+.env
