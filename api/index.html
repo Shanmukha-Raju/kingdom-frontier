@@ -1060,7 +1060,16 @@
          JAVASCRIPT — RPG ENGINE
          ═══════════════════════════════════════════════════════════════ -->
     <script>
-        const API = "";
+        // --- Backend Connection Configuration ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramBackend = urlParams.get('backend');
+        const PRODUCTION_BACKEND_URL = "https://your-deployed-backend-url.railway.app"; 
+
+        const API = paramBackend 
+            ? paramBackend 
+            : (window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") || window.location.origin.startsWith("file")
+                ? "http://127.0.0.1:8001"
+                : PRODUCTION_BACKEND_URL);
 
         // ─── State ──────────────────────────────────────────────────
         let state = {
