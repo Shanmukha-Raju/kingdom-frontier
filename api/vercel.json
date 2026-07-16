@@ -1,0 +1,8 @@
+{
+  "cleanUrls": true,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "demo.html", "use": "@vercel/static" },
+    { "src": "assets/**", "use": "@vercel/static" }
+  ]
+}
