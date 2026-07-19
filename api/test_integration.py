@@ -99,23 +99,19 @@ def run_tests():
     inv_res5 = call_get(f"/player_inventory/{urllib.parse.quote(player_name)}")
     katana_item = next(item for item in inv_res5["items"] if item["name"] == "Frostbane Katana")
     print("Initial Katana Durability:", katana_item["durability"])
-    assert katana_item["durability"] == 5
+    assert katana_item["durability"] == -1
 
-    # Use weapon 5 times until it breaks
+    # Use weapon 5 times - it should NOT break or change durability!
     for i in range(1, 6):
         use_res = call_post("/use_weapon", {"player_name": player_name, "weapon_name": "Frostbane Katana"})
         print(f"Use {i}:", use_res)
         assert use_res["success"] == True
-        if i < 5:
-            assert use_res["broken"] == False
-            assert use_res["durability"] == 5 - i
-        else:
-            assert use_res["broken"] == True
-            assert use_res["durability"] == 0
+        assert use_res["broken"] == False
+        assert use_res["durability"] == -1
 
     inv_res6 = call_get(f"/player_inventory/{urllib.parse.quote(player_name)}")
-    print("Inventory after weapon broke:", inv_res6)
-    assert not any(item["name"] == "Frostbane Katana" for item in inv_res6["items"])
+    print("Inventory after weapon use:", inv_res6)
+    assert any(item["name"] == "Frostbane Katana" for item in inv_res6["items"])
 
     # 7. Test /craft_diamond_sword
     # Need 1 Diamond and 3 Raw Meats. We currently have 1 Diamond and 2 Raw Meats in inventory.

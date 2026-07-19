@@ -978,7 +978,7 @@ def add_loot(query: LootQuery):
                 
                 # Default durability for newly drop-added items
                 durability = -1
-                if item_id in ("frostbane_katana", "steel_sword", "iron_shield", "thornwood_bow"):
+                if item_id in ("steel_sword", "iron_shield", "thornwood_bow"):
                     durability = 5
                 elif item_id == "hunting_knife":
                     durability = 3
